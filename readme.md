@@ -11,7 +11,7 @@
  - left arrow to leave/hide server
  - enter to write a message
  - r to reply while selecting a message
- - + to add reaction while selecting a message
+ - \+ to add reaction while selecting a message
    enter the unicode version of the emoji, custom emojis not supported yet
  - q/CTRL+C to quit
  - : to evaluate javascipt code
