@@ -72,10 +72,10 @@ async function render(){
 		out.push([])
 		if(data.cur_sel=='channel'||data.cur_sel=='message'){
 			let chan = data.cur_channel_obj;
-			if(chan.type==0&&chan.viewable){
+			if([0,1,11,12].includes(chan.type)&&chan.viewable){
 				if(!(chan.id in data.channels)){
 					let msgs = await chan.messages.fetch({limit: 10});
-					data.channels[chan.id] = {msgs:[]};
+				data.channels[chan.id] = {msgs:[]};
 					for(let a of msgs){
 						data.channels[chan.id].msgs.unshift(a[1]);
 					}
@@ -94,15 +94,18 @@ async function render(){
 						let temp = prefix+msg.author.username+"\033[0m";
 						if(msg.type==19){
 							let reply = await msg.fetchReference();
-							temp += " → " + reply.author.username + " → " + reply.content.slice(0,50)
+							temp += " → " + reply.author.username + " → " + reply.content.slice(0,50).replaceAll('\n','  ');
 						}
 						out[1].push(temp)
 					}
 					last = msg.author.id;
 					let cont = msg.content;
-					if('embeds' in msg)for(let embed of msg.embeds){
-						cont += embed.data.title;
-						cont += embed.data.description;
+					if('embeds' in msg){
+						cont += "\n";
+						for(let embed of msg.embeds){
+							cont += embed.data.title;
+							cont += embed.data.description;
+						}
 					}
 					do{
 						let line = cont.slice(0,100).split(/[\n\r]/)[0];
@@ -127,7 +130,7 @@ async function render(){
 	for(let a in out){
 		lens.push(0)
 		for(let b of out[a])
-			lens[a] = max(lens[a],b.length)
+			lens[a] = max(lens[a],b.replaceAll(new RegExp("\033\[[0-9;]*?m","g"),'').length)
 	}
 	if(frame-1!=curframe) return;
 	print('\n\n\n\n\n\n\n\n\n\n\033[2J')
