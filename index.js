@@ -27,8 +27,8 @@ const data = {
 	channels:{},
 	cur_channel_obj:null,
 	cur_message_obj:null,
+	emojis:require('./emojis.json'),
 };
-
 let frame = 0;
 async function render(){
 	let curframe = frame;
@@ -114,6 +114,11 @@ async function render(){
 						while(cont[0]=='\n'||cont[0]=='\r')
 							cont=cont.slice(1);
 					}while(cont.length>0);
+					let emojis = Array.from(msg.reactions.cache);
+					let temp = "";
+					for(let a of emojis)
+						temp += (a[0].length<5?a[0]:'?').repeat(a[1].count);
+					if(temp) out[1].push("     \033[100m "+temp+" \033[0m")
 					if(__DEBUG)logs.push(msg)
 				}
 			}
@@ -146,8 +151,8 @@ async function render(){
 		console.log(data);
 		for(let a in data.channels)
 			console.log(data.channels[a])
+		for(let a of logs)console.log(a)
 	}
-	for(let a of logs)console.log(a)
 }
 
 (async ()=>{
@@ -185,7 +190,7 @@ async function render(){
 				if(data.cur_sel=='message') data.cur_message=min(data.cur_message+1,data.channels[data.cur_channel_obj.id].msgs.length-1);
 			}
 			if(key[2]=='C'){
-				if(data.cur_sel=='channel'){
+				if(data.cur_sel=='channel'&&[0,1,11,12].includes(data.cur_channel_obj.type)&&data.cur_channel_obj.viewable){
 					data.cur_message = data.channels[data.cur_channel_obj.id].msgs.length-1;
 					data.cur_sel='message';
 				}
@@ -245,9 +250,17 @@ async function render(){
 			frame+=1;
 			print('+')
 			let emote = (await input()).trim();
-			console.log(JSON.stringify(emote))
-			if(!emote.includes("\033"))
-				data.cur_message_obj.react(emote);
+			if(!emote.includes("\033")){
+				try{
+					if(emote in data.emojis)
+						await data.cur_message_obj.react(data.emojis[emote]);
+					else 
+						await data.cur_message_obj.react(emote)
+				}catch(err){
+					console.log('unable to react!')
+					await new Promise(res => setTimeout(res,1000)); 
+				}
+			}
 		}
 		else{
 			if(__DEBUG) console.log(JSON.stringify(key))
