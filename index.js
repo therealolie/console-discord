@@ -29,6 +29,8 @@ const data = {
 	cur_message_obj:null,
 	emojis:require('./emojis.json'),
 };
+const mobile = process.stdout.columns<80;
+
 let frame = 0;
 async function render(){
 	let curframe = frame;
@@ -38,26 +40,47 @@ async function render(){
 	let logs = [];
 	{
 		out.push([])
+		let curout = out[out.length-1];
 		let guilds = await client.guilds.cache.map(guild => guild);
 		data.guild_amt = guilds.length;
-		out[0].push(client.user.username)
+		curout.push(client.user.username)
 		for(let i in guilds){
 			let guild = guilds[i]
-			out[0].push((i!=guilds.length-1?'├':'└')+(i==data.cur_guild?data.cur_sel=='guild'?"\033[30;107m":"\033[30;47m":"")+guild.name+"\033[0m");
+			curout.push((i!=guilds.length-1?'├':'└')+(i==data.cur_guild?data.cur_sel=='guild'?"\033[30;107m":"\033[30;47m":"")+guild.name+"\033[0m");
 			if(i==data.cur_guild && data.cur_sel=='guild')
 				data.cur_thing = guild;
 			if(i==data.cur_guild){
 				data.cur_guild_obj = guild;
 			}
 			if(data.guilds[i]?.open){
-				let channels = await guild.channels.cache.map(c=>c);
-				data.guilds[i].chan_amt = channels.length;
+				let channels_raw = Array.from(await guild.channels.cache.map(c=>c));
+				data.guilds[i].chan_amt = channels_raw.length;
+				let channels = [];
+				let cats = channels_raw.filter(channel=>channel.type==4);
+				if(__DEBUG)logs.push(cats)
+				for(let i in cats){
+					let cat = cats[i];
+					cat.childs = Array.from(channels_raw.filter(chan => chan.parentId == cat.id));
+					cat.childs.sort((a, b) => a.position - b.position);
+				}
+				cats.sort((a, b) => a.position - b.position);
+				for(let i in cats){
+					let cat = cats[i];
+					cat.prefix=(i!=cats.length-1?'├':'└');
+					channels.push(cat);
+					for(let j in cat.childs){
+						let chan = cat.childs[j];
+						chan.prefix=(i!=cats.length-1?"│ ":"  ")+(j!=cat.childs.length-1?'├':'└');
+						channels.push(chan)
+					}
+				}
 				for(let j in channels){
 					if(i==data.cur_guild)
 						data.chan_amt = channels.length;
 					let chan = channels[j];
-					let text = i!=guilds.length-1?"│ ":"  ";
-					out[0].push(text + (j!=channels.length-1?'├':'└') + (j==data.guilds[i].cur_chan?data.cur_sel=='channel'&&data.cur_guild==i?"\033[30;107m":"\033[30;47m":"") +chan.name + "\033[0m");
+					let text = (i!=guilds.length-1?"│ ":"  ");
+					text += chan.prefix;
+					curout.push(text + (j==data.guilds[i].cur_chan?data.cur_sel=='channel'&&data.cur_guild==i?"\033[30;107m":"\033[30;47m":"") +chan.name + "\033[0m");
 					if(j==data.guilds[i].cur_chan && data.cur_sel=='channel' && data.cur_guild==i)
 						data.cur_thing = chan;
 					if(j==data.guilds[i].cur_chan && data.cur_guild==i)
@@ -66,10 +89,13 @@ async function render(){
 			}
 		}
 	}
-	
+	let len = 0;
+	if(mobile&&data.cur_sel=='message')out.splice(-1);
+	else out[0].forEach(e=>len=max(len,e.replaceAll(new RegExp("\033\[[0-9;]*?m","g"),'').length));
 	//messages
 	{
 		out.push([])
+		let curout = out[out.length-1];
 		if(data.cur_sel=='channel'||data.cur_sel=='message'){
 			let chan = data.cur_channel_obj;
 			if([0,1,11,12].includes(chan.type)&&chan.viewable){
@@ -90,26 +116,30 @@ async function render(){
 						data.cur_thing = msgs[a];
 					}
 					let msg = msgs[a];
-					if(last!=msg.author.id){
+					if(last!=msg.author.id||msg.type==19){
 						let temp = prefix+msg.author.username+"\033[0m";
 						if(msg.type==19){
-							let reply = await msg.fetchReference();
-							temp += " → " + reply.author.username + " → " + reply.content.slice(0,50).replaceAll('\n','  ');
+							try{
+								let reply = await msg.fetchReference();
+								temp += " → " + reply.author.username + " → " + reply.content.slice(0,process.stdout.columns-16-msg.author.username.length-reply.author.username.length-len).replaceAll('\n','  ');
+							}catch(err){
+								temp += " → \033[3mDeleted Message\033[0m";
+							}
 						}
-						out[1].push(temp)
+						curout.push(temp)
 					}
 					last = msg.author.id;
 					let cont = msg.content;
 					if('embeds' in msg){
 						cont += "\n";
-						for(let embed of msg.embeds){
-							cont += embed.data.title;
-							cont += embed.data.description;
-						}
+						for(let embed of msg.embeds)
+							for(let e of ['title','description'])
+								if(e in embed.data)
+									cont += embed.data[e]
 					}
 					do{
-						let line = cont.slice(0,100).split(/[\n\r]/)[0];
-						out[1].push(prefix + "     " + line.replaceAll('\033','^[')+"\033[0m")
+						let line = cont.slice(0,process.stdout.columns-len-out.length*10).split(/[\n\r]/)[0];
+						curout.push(prefix + "     " + line.replaceAll('\033','^[')+"\033[0m")
 						cont = cont.slice(line.length);
 						while(cont[0]=='\n'||cont[0]=='\r')
 							cont=cont.slice(1);
@@ -118,15 +148,16 @@ async function render(){
 					let temp = "";
 					for(let a of emojis)
 						temp += (a[0].length<5?a[0]:'?').repeat(a[1].count);
-					if(temp) out[1].push("     \033[100m "+temp+" \033[0m")
+					if(temp) curout.push("     \033[100m "+temp+" \033[0m")
 					if(__DEBUG)logs.push(msg)
 				}
 			}
 			else if(chan.viewable==false){
-				out[1].push('Hidden!')
+				curout.push('Hidden!')
 			}
 		}
 	}
+	if(mobile&&data.cur_sel!='message')out.splice(-1);
 
 	let lines = 0;
 	for(let a of out)
@@ -147,17 +178,16 @@ async function render(){
 		}
 		print("\n")
 	}
-	if(__DEBUG){
-		console.log(data);
+	if(__DEBUG)
 		for(let a in data.channels)
 			console.log(data.channels[a])
-		for(let a of logs)console.log(a)
-	}
+	for(let a of logs)console.log(a)
+	
 }
 
 (async ()=>{
 	{
-		let TOKEN = (await input('TOKEN: ')).slice(0,-1);
+		let TOKEN = (await input('TOKEN: ')).trim();
 		if(TOKEN=="") TOKEN = (""+fs.readFileSync('../token.txt')).trim();
 		let pro = new Promise(res => client.on('ready',res))
 		client.login(TOKEN)
