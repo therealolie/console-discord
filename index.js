@@ -244,10 +244,10 @@ async function render(){
 			}
 		}
 		else if(key=='\r'){
-			if(data.cur_sel=='channel'){
+			if(data.cur_sel=='channel'||data.cur_sel=='message'){
 				stdin.setRawMode(false);
 				frame+=1;
-				print(">>> ")
+				print("< > ")
 				let msg = await input();
 				if(!msg.includes("\033"))
 					data.cur_channel_obj.send(msg).catch(()=>{});
@@ -257,7 +257,7 @@ async function render(){
 			if(data.cur_sel=='message'){
 				stdin.setRawMode(false);
 				frame+=1;
-				print("<<< ")
+				print("<R> ")
 				let msg = await input();
 				if(!msg.includes("\033"))
 					data.cur_message_obj.reply(msg).catch(()=>{});
@@ -275,20 +275,38 @@ async function render(){
 			console.log(eval(command));
 			await input();
 		}
-		else if(key=='+'&&data.cur_sel=='message'){
-			stdin.setRawMode(false);
-			frame+=1;
-			print('+')
-			let emote = (await input()).trim();
-			if(!emote.includes("\033")){
-				try{
-					if(emote in data.emojis)
-						await data.cur_message_obj.react(data.emojis[emote]);
-					else 
-						await data.cur_message_obj.react(emote)
-				}catch(err){
-					console.log('unable to react!')
-					await new Promise(res => setTimeout(res,1000)); 
+		else if(key=='+'){
+			if(data.cur_sel=='message'){
+				stdin.setRawMode(false);
+				frame+=1;
+				print('+ ')
+				let emote = (await input()).trim();
+				if(!emote.includes("\033")){
+					try{
+						if(emote in data.emojis)
+							await data.cur_message_obj.react(data.emojis[emote]);
+						else 
+							await data.cur_message_obj.react(emote)
+					}catch(err){
+						console.log('unable to react!')
+						await new Promise(res => setTimeout(res,1000)); 
+					}
+				}
+			}
+		}
+		else if(key=='e'){
+			if(data.cur_sel=='message'){
+				stdin.setRawMode(false);
+				frame+=1;
+				print('<E> ')
+				let edit = (await input()).trim();
+				if(!edit.includes("\033")){
+					try{
+						await data.cur_message_obj.edit(edit)
+					}catch(err){
+						console.log('unable to edit')
+						await new Promise(res => setTimeout(res,1000)); 
+					}
 				}
 			}
 		}
