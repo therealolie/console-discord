@@ -12,8 +12,8 @@
    `npm install discord.js-selfbot-v13`
 ## Controls/Usage
  - up/down arrows to switch between servers/channels/messages
- - right arrow to go into a server/channel
- - left arrow to leave/hide server
+ - right arrow to go into a server/channel, or expand a folder/category, or pick a message
+ - left arrow to leave server/message picker, or collapse a folder/category/server
  - enter to write a message
  - r to reply while selecting a message
  - e to edit a message

@@ -3,7 +3,7 @@
 
 const fs = require('fs');
 const { Client, Events, GatewayIntentBits } = require('discord.js-selfbot-v13');
-const client = new Client({ intents: 4194303, checkUpdate: false });
+const client = new Client({ checkUpdate: false });
 const {min, max, floor, ceil} = Math;
 const stdin = process.stdin;
 stdin.resume();
@@ -50,7 +50,7 @@ async function render(){
 		for(let a of raw_folders)
 			for(let b of a.guilds.map(g=>g))
 				if(home_guilds.includes(b))
-					home_guilds.splice(home_guilds.indexOf(b));
+					home_guilds.splice(home_guilds.indexOf(b),1);
 		let folders = home_guilds.concat(raw_folders);
 		for(let i in folders){
 			let fold = folders[i];
@@ -64,12 +64,13 @@ async function render(){
 		for(let i in folders){
 			let fold = folders[i];
 			guilds.push(fold);
-			for(let j in fold.childs){
-				let child = fold.childs[j];
-				child.prefix = fold.childprefix + (j!=fold.childs.length-1?'├':'└');
-				child.childprefix = fold.childprefix + (j!=fold.childs.length-1?'│ ':'  ');
-				guilds.push(child);
-			}
+			if(fold.open)
+				for(let j in fold.childs){
+					let child = fold.childs[j];
+					child.prefix = fold.childprefix + (j!=fold.childs.length-1?'├':'└');
+					child.childprefix = fold.childprefix + (j!=fold.childs.length-1?'│ ':'  ');
+					guilds.push(child);
+				}
 		}
 		data.guild_amt = guilds.length;
 		curout.push(client.user.username)
@@ -98,11 +99,12 @@ async function render(){
 					cat.prefix=guild.childprefix+(i!=cats.length-1?'├':'└');
 					cat.childprefix = guild.childprefix + (i!=cats.length-1?'│ ':'  '); 
 					channels.push(cat);
-					for(let j in cat.childs){
-						let chan = cat.childs[j];
-						chan.prefix=cat.childprefix+(j!=cat.childs.length-1?'├':'└');
-						channels.push(chan)
-					}
+					if(cat.open)
+						for(let j in cat.childs){
+							let chan = cat.childs[j];
+							chan.prefix=cat.childprefix+(j!=cat.childs.length-1?'├':'└');
+							channels.push(chan)
+						}
 				}
 				for(let j in channels){
 					if(i==data.cur_guild)
@@ -130,7 +132,7 @@ async function render(){
 			let chan = data.cur_channel_obj;
 			if(allowedChannelTypes.includes(chan.type)&&chan.viewable){
 				if(!(chan.id in data.channels)){
-					let msgs = await chan.messages.fetch({limit: 10});
+					let msgs = await chan.messages.fetch({limit: 50});
 				data.channels[chan.id] = {msgs:[]};
 					for(let a of msgs){
 						data.channels[chan.id].msgs.unshift(a[1]);
@@ -250,23 +252,36 @@ async function render(){
 				if(data.cur_sel=='message') data.cur_message=min(data.cur_message+1,data.channels[data.cur_channel_obj.id].msgs.length-1);
 			}
 			if(key[2]=='C'){
-				if(data.cur_sel=='channel'&&allowedChannelTypes.includes(data.cur_channel_obj.type)&&data.cur_channel_obj.viewable){
-					data.cur_message = data.channels[data.cur_channel_obj.id].msgs.length-1;
-					data.cur_sel='message';
+				if(data.cur_sel=='channel'&&data.cur_channel_obj.viewable){
+					if(allowedChannelTypes.includes(data.cur_channel_obj.type)){
+						data.cur_message = data.channels[data.cur_channel_obj.id].msgs.length-1;
+						data.cur_sel='message';
+					}else
+						data.cur_channel_obj.open = true;
 				}
-				if(data.cur_sel=='guild'&&typeof data.cur_guild_obj!='GuildFolder'){
-					data.guilds[data.cur_guild] = data.guilds[data.cur_guild]??{};
-					data.guilds[data.cur_guild].open = true;
-					data.guilds[data.cur_guild].cur_chan = data.guilds[data.cur_guild].cur_chan??0;
-					data.cur_sel='channel';
+				if(data.cur_sel=='guild'){
+					if(data.cur_guild_obj.color){
+						data.cur_guild_obj.open= true;
+					}else{
+						data.guilds[data.cur_guild] = data.guilds[data.cur_guild]??{};
+						data.guilds[data.cur_guild].open = true;
+						data.guilds[data.cur_guild].cur_chan = data.guilds[data.cur_guild].cur_chan??0;
+						data.cur_sel='channel';
+					}
 				}
 			}
 			if(key[2]=='D'){
 				if(data.cur_sel=='guild'){
-					delete data.guilds[data.cur_guild]?.open;
+					if(data.cur_guild_obj.color)
+						delete data.cur_guild_obj.open;
+					else
+						delete data.guilds[data.cur_guild]?.open;
 				}
 				if(data.cur_sel=='channel'){
-					data.cur_sel='guild';
+					if(!data.cur_channel_obj.open)
+						data.cur_sel='guild';
+					else
+						delete data.cur_channel_obj.open;
 				}
 				if(data.cur_sel=='message'){
 					data.cur_sel='channel';
