@@ -2,15 +2,14 @@
 
 ## Limitations
  - this app was only tested on linux/android, prob works fine on on other platforms
- - you can only log into bot-users
  - custom emojis are displayed as '?'
  - no dms yet
  - if something is not described in controls, its probably not added
 
 ## Requirements
  - node
- - discord.js v14
-   `npm install discord.js`
+ - discord.js selfbot v13
+   `npm install discord.js-selfbot-v13`
 ## Controls/Usage
  - up/down arrows to switch between servers/channels/messages
  - right arrow to go into a server/channel

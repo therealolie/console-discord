@@ -2,8 +2,8 @@
 //*/const __DEBUG = false;
 
 const fs = require('fs');
-const { Client, Events, GatewayIntentBits } = require('discord.js');
-const client = new Client({ intents: 4194303 });
+const { Client, Events, GatewayIntentBits } = require('discord.js-selfbot-v13');
+const client = new Client({ intents: 4194303, checkUpdate: false });
 const {min, max, floor, ceil} = Math;
 const stdin = process.stdin;
 stdin.resume();
@@ -29,9 +29,12 @@ const data = {
 	cur_message_obj:null,
 	emojis:require('./emojis.json'),
 };
+
+const allowedChannelTypes = ['GUILD_PUBLIC_THREAD','GUILD_PRIVATE_THREAD','GUILD_TEXT'];
 const mobile = process.stdout.columns<80;
 
 let frame = 0;
+let enableUpdates = true;
 async function render(){
 	let curframe = frame;
 	frame += 1;
@@ -41,12 +44,38 @@ async function render(){
 	{
 		out.push([])
 		let curout = out[out.length-1];
-		let guilds = await client.guilds.cache.map(guild => guild);
+		let raw_guilds = await client.guilds.cache.map(guild => guild);
+		let home_guilds = Array.from(raw_guilds);
+		let raw_folders = Array.from(client.settings.guildFolder.cache.map(f=>f));
+		for(let a of raw_folders)
+			for(let b of a.guilds.map(g=>g))
+				if(home_guilds.includes(b))
+					home_guilds.splice(home_guilds.indexOf(b));
+		let folders = home_guilds.concat(raw_folders);
+		for(let i in folders){
+			let fold = folders[i];
+			if(fold.color) //check if its really a folder
+				fold.childs = Array.from(fold.guilds.map(g=>g));
+			else fold.childs = [];
+			fold.prefix=(i!=folders.length-1?'├':'└');
+			fold.childprefix = (i!=folders.length-1?'│ ':'  '); 
+		}
+		let guilds = [];
+		for(let i in folders){
+			let fold = folders[i];
+			guilds.push(fold);
+			for(let j in fold.childs){
+				let child = fold.childs[j];
+				child.prefix = fold.childprefix + (j!=fold.childs.length-1?'├':'└');
+				child.childprefix = fold.childprefix + (j!=fold.childs.length-1?'│ ':'  ');
+				guilds.push(child);
+			}
+		}
 		data.guild_amt = guilds.length;
 		curout.push(client.user.username)
 		for(let i in guilds){
 			let guild = guilds[i]
-			curout.push((i!=guilds.length-1?'├':'└')+(i==data.cur_guild?data.cur_sel=='guild'?"\033[30;107m":"\033[30;47m":"")+guild.name+"\033[0m");
+			curout.push(guild.prefix + (i==data.cur_guild?data.cur_sel=='guild'?"\033[30;107m":"\033[30;47m":"")+guild.name+"\033[0m");
 			if(i==data.cur_guild && data.cur_sel=='guild')
 				data.cur_thing = guild;
 			if(i==data.cur_guild){
@@ -56,21 +85,22 @@ async function render(){
 				let channels_raw = Array.from(await guild.channels.cache.map(c=>c));
 				data.guilds[i].chan_amt = channels_raw.length;
 				let channels = [];
-				let cats = channels_raw.filter(channel=>channel.type==4);
+				let cats = channels_raw.filter(channel=>!channel.parentId);
 				if(__DEBUG)logs.push(cats)
 				for(let i in cats){
 					let cat = cats[i];
 					cat.childs = Array.from(channels_raw.filter(chan => chan.parentId == cat.id));
 					cat.childs.sort((a, b) => a.position - b.position);
 				}
-				cats.sort((a, b) => a.position - b.position);
+				cats.sort((a, b) => !a.childs.length - !b.childs.length || a.position - b.position);
 				for(let i in cats){
 					let cat = cats[i];
-					cat.prefix=(i!=cats.length-1?'├':'└');
+					cat.prefix=guild.childprefix+(i!=cats.length-1?'├':'└');
+					cat.childprefix = guild.childprefix + (i!=cats.length-1?'│ ':'  '); 
 					channels.push(cat);
 					for(let j in cat.childs){
 						let chan = cat.childs[j];
-						chan.prefix=(i!=cats.length-1?"│ ":"  ")+(j!=cat.childs.length-1?'├':'└');
+						chan.prefix=cat.childprefix+(j!=cat.childs.length-1?'├':'└');
 						channels.push(chan)
 					}
 				}
@@ -78,9 +108,9 @@ async function render(){
 					if(i==data.cur_guild)
 						data.chan_amt = channels.length;
 					let chan = channels[j];
-					let text = (i!=guilds.length-1?"│ ":"  ");
-					text += chan.prefix;
-					curout.push(text + (j==data.guilds[i].cur_chan?data.cur_sel=='channel'&&data.cur_guild==i?"\033[30;107m":"\033[30;47m":"") +chan.name + "\033[0m");
+					let text = chan.prefix;
+					text += (j==data.guilds[i].cur_chan?data.cur_sel=='channel'&&data.cur_guild==i?"\033[30;107m":"\033[30;47m":"")
+					curout.push(text + chan.name + "\033[0m");
 					if(j==data.guilds[i].cur_chan && data.cur_sel=='channel' && data.cur_guild==i)
 						data.cur_thing = chan;
 					if(j==data.guilds[i].cur_chan && data.cur_guild==i)
@@ -98,7 +128,7 @@ async function render(){
 		let curout = out[out.length-1];
 		if(data.cur_sel=='channel'||data.cur_sel=='message'){
 			let chan = data.cur_channel_obj;
-			if([0,1,11,12].includes(chan.type)&&chan.viewable){
+			if(allowedChannelTypes.includes(chan.type)&&chan.viewable){
 				if(!(chan.id in data.channels)){
 					let msgs = await chan.messages.fetch({limit: 10});
 				data.channels[chan.id] = {msgs:[]};
@@ -121,7 +151,7 @@ async function render(){
 						if(msg.type==19){
 							try{
 								let reply = await msg.fetchReference();
-								temp += " → " + reply.author.username + " → " + reply.content.slice(0,process.stdout.columns-16-msg.author.username.length-reply.author.username.length-len).replaceAll('\n','  ');
+								temp += " → " + reply.author.username + " → " + reply.content.slice(0,process.stdout.columns-36-msg.author.username.length-reply.author.username.length-len).replaceAll('\n','  ');
 							}catch(err){
 								temp += " → \033[3mDeleted Message\033[0m";
 							}
@@ -134,8 +164,8 @@ async function render(){
 						cont += "\n";
 						for(let embed of msg.embeds)
 							for(let e of ['title','description'])
-								if(e in embed.data)
-									cont += embed.data[e]
+								if(e in embed)
+									cont += embed[e]
 					}
 					do{
 						let line = cont.slice(0,process.stdout.columns-len-out.length*10).split(/[\n\r]/)[0];
@@ -147,8 +177,8 @@ async function render(){
 					let emojis = Array.from(msg.reactions.cache);
 					let temp = "";
 					for(let a of emojis)
-						temp += (a[0].length<5?a[0]:'?').repeat(a[1].count);
-					if(temp) curout.push("     \033[100m "+temp+" \033[0m")
+						temp += (a[1].count-1?a[1].count:"")+(a[0].length<5?a[0]:'?')+" ";
+					if(temp) curout.push("     \033[100m "+temp+"\033[0m")
 					if(__DEBUG)logs.push(msg)
 				}
 			}
@@ -168,7 +198,7 @@ async function render(){
 		for(let b of out[a])
 			lens[a] = max(lens[a],b.replaceAll(new RegExp("\033\[[0-9;]*?m","g"),'').length)
 	}
-	if(frame-1!=curframe) return;
+	if(frame-1!=curframe||!enableUpdates) return;
 	print('\n\n\n\n\n\n\n\n\n\n\033[2J')
 	for(let a=0;a<lines;a++){
 		for(let b in out){
@@ -220,11 +250,11 @@ async function render(){
 				if(data.cur_sel=='message') data.cur_message=min(data.cur_message+1,data.channels[data.cur_channel_obj.id].msgs.length-1);
 			}
 			if(key[2]=='C'){
-				if(data.cur_sel=='channel'&&[0,1,11,12].includes(data.cur_channel_obj.type)&&data.cur_channel_obj.viewable){
+				if(data.cur_sel=='channel'&&allowedChannelTypes.includes(data.cur_channel_obj.type)&&data.cur_channel_obj.viewable){
 					data.cur_message = data.channels[data.cur_channel_obj.id].msgs.length-1;
 					data.cur_sel='message';
 				}
-				if(data.cur_sel=='guild'){
+				if(data.cur_sel=='guild'&&typeof data.cur_guild_obj!='GuildFolder'){
 					data.guilds[data.cur_guild] = data.guilds[data.cur_guild]??{};
 					data.guilds[data.cur_guild].open = true;
 					data.guilds[data.cur_guild].cur_chan = data.guilds[data.cur_guild].cur_chan??0;
@@ -246,26 +276,29 @@ async function render(){
 		else if(key=='\r'){
 			if(data.cur_sel=='channel'||data.cur_sel=='message'){
 				stdin.setRawMode(false);
-				frame+=1;
+				enableUpdates=false;
 				print("< > ")
 				let msg = await input();
 				if(!msg.includes("\033"))
 					data.cur_channel_obj.send(msg).catch(()=>{});
+				enableUpdates=true;
 			}
 		}
 		else if(key=='r'){
 			if(data.cur_sel=='message'){
 				stdin.setRawMode(false);
-				frame+=1;
+				enableUpdates=false;
 				print("<R> ")
 				let msg = await input();
 				if(!msg.includes("\033"))
 					data.cur_message_obj.reply(msg).catch(()=>{});
+				enableUpdates=true;
 			}
 		}
 		else if(key==':'){
 			stdin.setRawMode(false);
 			frame+=1;
+			enableUpdates=false;
 			print(':')
 			let command = await input();
 			if(command=='q\n'){
@@ -274,6 +307,7 @@ async function render(){
 			}
 			console.log(eval(command));
 			await input();
+			enableUpdates=true;
 		}
 		else if(key=='+'){
 			if(data.cur_sel=='message'){
