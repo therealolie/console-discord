@@ -14,7 +14,7 @@ const print = (prin) => {
 }
 const input = (prin) => {
 	print(prin)
-	return new Promise(res => stdin.on('data',res));
+	return new Promise(res => stdin.once('data',res));
 }
 const data = {
 	cur_guild:0,
@@ -57,6 +57,7 @@ async function render(){
 			if(fold.color) //check if its really a folder
 				fold.childs = Array.from(fold.guilds.map(g=>g));
 			else fold.childs = [];
+			fold.childs.sort((a,b)=>fold.guild_ids.indexOf(a.id)-fold.guild_ids.indexOf(b.id));
 			fold.prefix=(i!=folders.length-1?'├':'└');
 			fold.childprefix = (i!=folders.length-1?'│ ':'  '); 
 		}
@@ -93,7 +94,7 @@ async function render(){
 					cat.childs = Array.from(channels_raw.filter(chan => chan.parentId == cat.id));
 					cat.childs.sort((a, b) => a.position - b.position);
 				}
-				cats.sort((a, b) => !a.childs.length - !b.childs.length || a.position - b.position);
+				cats.sort((a, b) => !b.childs.length - !a.childs.length || a.position - b.position);
 				for(let i in cats){
 					let cat = cats[i];
 					cat.prefix=guild.childprefix+(i!=cats.length-1?'├':'└');
@@ -148,9 +149,9 @@ async function render(){
 						data.cur_thing = msgs[a];
 					}
 					let msg = msgs[a];
-					if(last!=msg.author.id||msg.type==19){
+					if(last!=msg.author.id||msg.type=='REPLY'){
 						let temp = prefix+msg.author.username+"\033[0m";
-						if(msg.type==19){
+						if(msg.type=='REPLY'){
 							try{
 								let reply = await msg.fetchReference();
 								temp += " → " + reply.author.username + " → " + reply.content.slice(0,process.stdout.columns-36-msg.author.username.length-reply.author.username.length-len).replaceAll('\n','  ');
@@ -201,7 +202,7 @@ async function render(){
 			lens[a] = max(lens[a],b.replaceAll(new RegExp("\033\[[0-9;]*?m","g"),'').length)
 	}
 	if(frame-1!=curframe||!enableUpdates) return;
-	print('\n\n\n\n\n\n\n\n\n\n\033[2J')
+	if(!__DEBUG) print('\n\n\n\n\n\n\n\n\n\n\033[2J')
 	for(let a=0;a<lines;a++){
 		for(let b in out){
 			let text = out[b][a-lines+out[b].length]??"";
@@ -219,16 +220,27 @@ async function render(){
 
 (async ()=>{
 	{
-		let TOKEN = (await input('TOKEN: ')).trim();
-		if(TOKEN=="") TOKEN = (""+fs.readFileSync('../token.txt')).trim();
-		let pro = new Promise(res => client.on('ready',res))
-		client.login(TOKEN)
-		await pro;
+		let logintype = (await input('Log in using TOKEN or PASSWORD:').trim();
+		if(logintype.toUpperCase()[0]=='T'){
+			let TOKEN = (await input('TOKEN: ')).trim();
+			if(TOKEN=="") TOKEN = (""+fs.readFileSync('../token.txt')).trim();
+			let pro = new Promise(res => client.once('ready',res))
+			client.login(TOKEN)
+			await pro;
+		}else{
+			let name = (await input('name:').trim();
+			let pass = (await input('password:').trim();
+			let mfa = (await input('mfa code (leave blank if not enabled):').trim();
+			let pro = new Promise(res => client.once('ready',res))
+			client.normalLogin(name, pass, mfa)
+			await pro;
+		}
 		client.on('messageCreate',(msg)=>{
 			if(msg.channel.id in data.channels){
 				data.channels[msg.channel.id].msgs.push(msg);
 			}
-			render();
+			if(msg.channel.id==data.cur_channel_obj?.id)
+				render();
 		})
 	}
 	let rend = true;
@@ -254,7 +266,7 @@ async function render(){
 			if(key[2]=='C'){
 				if(data.cur_sel=='channel'&&data.cur_channel_obj.viewable){
 					if(allowedChannelTypes.includes(data.cur_channel_obj.type)){
-						data.cur_message = data.channels[data.cur_channel_obj.id].msgs.length-1;
+						data.cur_message = data.channels[data.cur_channel_obj.id]?.msgs?.length-1;
 						data.cur_sel='message';
 					}else
 						data.cur_channel_obj.open = true;
