@@ -1,5 +1,3 @@
-/*const __DEBUG = true;
-//*/const __DEBUG = false;
 
 const fs = require('fs');
 const { Client, Events, GatewayIntentBits } = require('discord.js-selfbot-v13');
@@ -28,6 +26,9 @@ const data = {
 	cur_channel_obj:null,
 	cur_message_obj:null,
 	emojis:require('./emojis.json'),
+	cur_dm:0,
+	cur_dm_obj:null,
+	dm_list:[],
 };
 
 const allowedChannelTypes = ['GUILD_PUBLIC_THREAD','GUILD_PRIVATE_THREAD','GUILD_TEXT'];
@@ -39,8 +40,7 @@ async function render(){
 	let curframe = frame;
 	frame += 1;
 	let out = [];
-	//server/channel list
-	let logs = [];
+	//server/channel/dm list
 	{
 		out.push([])
 		let curout = out[out.length-1];
@@ -74,7 +74,23 @@ async function render(){
 				}
 		}
 		data.guild_amt = guilds.length;
-		curout.push(client.user.username)
+		curout.push((data.cur_guild==-1?data.cur_sel=='guild'?"\033[30;107m":"\033[30;47m":"") + client.user.username + "\033[0m")
+		//dms
+		if(data.dms_open){
+			let channels = Array.from(client.channels.cache.filter(c=>c.type=='DM'));
+			data.dm_list = [];
+			for(let i in channels){
+				let chan = channels[i][1];
+				data.dm_list.push(chan);
+				let text = channels.length-1!=i?'│ ├':'│ └';
+				text += (i==data.cur_dm?data.cur_sel=='dm'?"\033[30;107m":"\033[30;47m":"")
+				curout.push(text + chan.recipient.username + "\033[0m");
+				if(i==data.cur_dm && data.cur_sel=='dm')
+					data.cur_thing = chan;
+				if(i==data.cur_dm)
+					data.cur_dm_obj = chan;
+			}
+		}
 		for(let i in guilds){
 			let guild = guilds[i]
 			curout.push(guild.prefix + (i==data.cur_guild?data.cur_sel=='guild'?"\033[30;107m":"\033[30;47m":"")+guild.name+"\033[0m");
@@ -88,7 +104,6 @@ async function render(){
 				data.guilds[i].chan_amt = channels_raw.length;
 				let channels = [];
 				let cats = channels_raw.filter(channel=>!channel.parentId);
-				if(__DEBUG)logs.push(cats)
 				for(let i in cats){
 					let cat = cats[i];
 					cat.childs = Array.from(channels_raw.filter(chan => chan.parentId == cat.id));
@@ -182,7 +197,6 @@ async function render(){
 					for(let a of emojis)
 						temp += (a[1].count-1?a[1].count:"")+(a[0].length<5?a[0]:'?')+" ";
 					if(temp) curout.push("     \033[100m "+temp+"\033[0m")
-					if(__DEBUG)logs.push(msg)
 				}
 			}
 			else if(chan.viewable==false){
@@ -202,7 +216,7 @@ async function render(){
 			lens[a] = max(lens[a],b.replaceAll(new RegExp("\033\[[0-9;]*?m","g"),'').length)
 	}
 	if(frame-1!=curframe||!enableUpdates) return;
-	if(!__DEBUG) print('\n\n\n\n\n\n\n\n\n\n\033[2J')
+	print('\n\n\n\n\n\n\n\n\n\n\033[2J')
 	for(let a=0;a<lines;a++){
 		for(let b in out){
 			let text = out[b][a-lines+out[b].length]??"";
@@ -211,10 +225,6 @@ async function render(){
 		}
 		print("\n")
 	}
-	if(__DEBUG)
-		for(let a in data.channels)
-			console.log(data.channels[a])
-	for(let a of logs)console.log(a)
 	
 }
 
@@ -254,14 +264,16 @@ async function render(){
 			process.exit()
 		else if(key[0]=='\u001b'){
 			if(key[2]=='A'){
-				if(data.cur_sel=='guild') data.cur_guild=max(0,data.cur_guild-1);
+				if(data.cur_sel=='guild') data.cur_guild=max(-1,data.cur_guild-1);
 				if(data.cur_sel=='channel') data.guilds[data.cur_guild].cur_chan=max(0,data.guilds[data.cur_guild].cur_chan-1);
-				if(data.cur_sel=='message') data.cur_message=max(data.cur_message-1,0)
+				if(data.cur_sel=='message') data.cur_message=max(data.cur_message-1,0);
+				if(data.cur_sel=='dm') data.cur_dm=max(data.cur_dm-1,0);
 			}
 			if(key[2]=='B'){
 				if(data.cur_sel=='guild') data.cur_guild=min(data.cur_guild+1,data.guild_amt-1);
 				if(data.cur_sel=='channel') data.guilds[data.cur_guild].cur_chan=min(data.guilds[data.cur_guild].cur_chan+1,data.guilds[data.cur_guild].chan_amt-1);
 				if(data.cur_sel=='message') data.cur_message=min(data.cur_message+1,data.channels[data.cur_channel_obj.id].msgs.length-1);
+				if(data.cur_sel=='dm') data.cur_dm=min(data.cur_dm+1,data.dm_list.length-1);
 			}
 			if(key[2]=='C'){
 				if(data.cur_sel=='channel'&&data.cur_channel_obj.viewable){
@@ -272,13 +284,18 @@ async function render(){
 						data.cur_channel_obj.open = true;
 				}
 				if(data.cur_sel=='guild'){
-					if(data.cur_guild_obj.color){
-						data.cur_guild_obj.open= true;
+					if(data.cur_guild!=-1){
+						if(data.cur_guild_obj.color){
+							data.cur_guild_obj.open= true;
+						}else{
+							data.guilds[data.cur_guild] = data.guilds[data.cur_guild]??{};
+							data.guilds[data.cur_guild].open = true;
+							data.guilds[data.cur_guild].cur_chan = data.guilds[data.cur_guild].cur_chan??0;
+							data.cur_sel='channel';
+						}
 					}else{
-						data.guilds[data.cur_guild] = data.guilds[data.cur_guild]??{};
-						data.guilds[data.cur_guild].open = true;
-						data.guilds[data.cur_guild].cur_chan = data.guilds[data.cur_guild].cur_chan??0;
-						data.cur_sel='channel';
+						data.dms_open = true;
+						data.cur_sel='dm';
 					}
 				}
 			}
@@ -295,9 +312,12 @@ async function render(){
 					else
 						delete data.cur_channel_obj.open;
 				}
-				if(data.cur_sel=='message'){
-					data.cur_sel='channel';
+				if(data.cur_sel=='dm'){
+					delete data.dms_open;
+					data.cur_sel='guild';
 				}
+				if(data.cur_sel=='message')
+					data.cur_sel='channel';
 			}
 		}
 		else if(key=='\r'){
@@ -372,7 +392,6 @@ async function render(){
 			}
 		}
 		else{
-			if(__DEBUG) console.log(JSON.stringify(key))
 			rend = false;
 		}
 	}
