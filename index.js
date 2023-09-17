@@ -167,7 +167,7 @@ async function render(){
 						cont += "\n";
 						for(let embed of msg.embeds)
 							for(let e of ['title','description'])
-								if(e in embed)
+								if(e in embed&&embed[e])
 									cont += embed[e]
 					}
 					do{
@@ -220,17 +220,17 @@ async function render(){
 
 (async ()=>{
 	{
-		let logintype = (await input('Log in using TOKEN or PASSWORD:').trim();
-		if(logintype.toUpperCase()[0]=='T'){
+		let logintype = (await input('Log in using TOKEN or PASSWORD:')).trim();
+		if(logintype.toUpperCase()[0]!='P'){
 			let TOKEN = (await input('TOKEN: ')).trim();
 			if(TOKEN=="") TOKEN = (""+fs.readFileSync('../token.txt')).trim();
 			let pro = new Promise(res => client.once('ready',res))
 			client.login(TOKEN)
 			await pro;
 		}else{
-			let name = (await input('name:').trim();
-			let pass = (await input('password:').trim();
-			let mfa = (await input('mfa code (leave blank if not enabled):').trim();
+			let name = (await input('name:')).trim();
+			let pass = (await input('password:')).trim();
+			let mfa = (await input('mfa code (leave blank if not enabled):')).trim();
 			let pro = new Promise(res => client.once('ready',res))
 			client.normalLogin(name, pass, mfa)
 			await pro;
