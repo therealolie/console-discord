@@ -169,7 +169,7 @@ async function render(){
 						if(msg.type=='REPLY'){
 							try{
 								let reply = await msg.fetchReference();
-								temp += " → " + reply.author.username + " → " + reply.content.slice(0,process.stdout.columns-36-msg.author.username.length-reply.author.username.length-len).replaceAll('\n','  ');
+								temp += " → " + reply.author.username + " → " + reply.content.slice(0,process.stdout.columns-15-msg.author.username.length-reply.author.username.length-len).replaceAll('\n','  ');
 							}catch(err){
 								temp += " → \033[3mDeleted Message\033[0m";
 							}
@@ -189,6 +189,7 @@ async function render(){
 						let line = cont.slice(0,process.stdout.columns-len-out.length*10).split(/[\n\r]/)[0];
 						curout.push(prefix + "     " + line.replaceAll('\033','^[')+"\033[0m")
 						cont = cont.slice(line.length);
+						if(line.length==0)cont = cont.slice(1);
 						while(cont[0]=='\n'||cont[0]=='\r')
 							cont=cont.slice(1);
 					}while(cont.length>0);
