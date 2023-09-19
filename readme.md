@@ -3,7 +3,6 @@
 ## Limitations
  - this app was only tested on linux/android, prob works fine on on other platforms
  - custom emojis are displayed as '?'
- - no dms yet
  - if something is not described in controls, its probably not added
 
 ## Requirements
@@ -12,7 +11,7 @@
    `npm install discord.js-selfbot-v13`
 ## Controls/Usage
  - up/down arrows to switch between servers/channels/messages
- - right arrow to go into a server/channel, or expand a folder/category, or pick a message
+ - right arrow to go into a server/channel, or expand a folder/category, or pick a message, or on username to open dm list
  - left arrow to leave server/message picker, or collapse a folder/category/server
  - enter to write a message
  - r to reply while selecting a message
