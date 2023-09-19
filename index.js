@@ -26,12 +26,11 @@ const data = {
 	cur_channel_obj:null,
 	cur_message_obj:null,
 	emojis:require('./emojis.json'),
-	cur_dm:0,
-	cur_dm_obj:null,
 	dm_list:[],
 };
 
-const allowedChannelTypes = ['GUILD_PUBLIC_THREAD','GUILD_PRIVATE_THREAD','GUILD_TEXT'];
+const allowedChannelTypes = ['DM','GUILD_PUBLIC_THREAD','GUILD_PRIVATE_THREAD','GUILD_TEXT'];
+const talkableSel = ['channel','message']; 
 const mobile = process.stdout.columns<80;
 
 let frame = 0;
@@ -77,19 +76,23 @@ async function render(){
 		curout.push((data.cur_guild==-1?data.cur_sel=='guild'?"\033[30;107m":"\033[30;47m":"") + client.user.username + "\033[0m")
 		//dms
 		if(data.dms_open){
-			let channels = Array.from(client.channels.cache.filter(c=>c.type=='DM'));
+			if(data.cur_guild==-1)data.cur_guild_obj = client.user;
+			let channels = Array.from(await client.channels.cache.filter(c=>c.type=='DM'));
 			data.dm_list = [];
 			for(let i in channels){
 				let chan = channels[i][1];
+				chan.viewable = true;
 				data.dm_list.push(chan);
 				let text = channels.length-1!=i?'│ ├':'│ └';
-				text += (i==data.cur_dm?data.cur_sel=='dm'?"\033[30;107m":"\033[30;47m":"")
-				curout.push(text + chan.recipient.username + "\033[0m");
-				if(i==data.cur_dm && data.cur_sel=='dm')
+				text+=(i==data.guilds[-1].cur_chan?data.cur_sel=='channel'?"\033[30;107m":"\033[30;47m":"");
+				text+= chan.recipient.globalame??chan.recipient.username;
+				curout.push(text + "\033[0m");
+				if(i==data.guilds[-1].cur_chan &&data.cur_guild==-1){
+					data.cur_channel_obj = chan;
 					data.cur_thing = chan;
-				if(i==data.cur_dm)
-					data.cur_dm_obj = chan;
+				}
 			}
+			data.guilds[-1].chan_amt = data.dm_list.length;
 		}
 		for(let i in guilds){
 			let guild = guilds[i]
@@ -144,7 +147,7 @@ async function render(){
 	{
 		out.push([])
 		let curout = out[out.length-1];
-		if(data.cur_sel=='channel'||data.cur_sel=='message'){
+		if(talkableSel.includes(data.cur_sel)){
 			let chan = data.cur_channel_obj;
 			if(allowedChannelTypes.includes(chan.type)&&chan.viewable){
 				if(!(chan.id in data.channels)){
@@ -268,13 +271,11 @@ async function render(){
 				if(data.cur_sel=='guild') data.cur_guild=max(-1,data.cur_guild-1);
 				if(data.cur_sel=='channel') data.guilds[data.cur_guild].cur_chan=max(0,data.guilds[data.cur_guild].cur_chan-1);
 				if(data.cur_sel=='message') data.cur_message=max(data.cur_message-1,0);
-				if(data.cur_sel=='dm') data.cur_dm=max(data.cur_dm-1,0);
 			}
 			if(key[2]=='B'){
 				if(data.cur_sel=='guild') data.cur_guild=min(data.cur_guild+1,data.guild_amt-1);
 				if(data.cur_sel=='channel') data.guilds[data.cur_guild].cur_chan=min(data.guilds[data.cur_guild].cur_chan+1,data.guilds[data.cur_guild].chan_amt-1);
 				if(data.cur_sel=='message') data.cur_message=min(data.cur_message+1,data.channels[data.cur_channel_obj.id].msgs.length-1);
-				if(data.cur_sel=='dm') data.cur_dm=min(data.cur_dm+1,data.dm_list.length-1);
 			}
 			if(key[2]=='C'){
 				if(data.cur_sel=='channel'&&data.cur_channel_obj.viewable){
@@ -295,8 +296,11 @@ async function render(){
 							data.cur_sel='channel';
 						}
 					}else{
+						data.guilds[data.cur_guild] = data.guilds[data.cur_guild]??{};
+						data.guilds[data.cur_guild].open = true;
+						data.guilds[data.cur_guild].cur_chan = data.guilds[data.cur_guild].cur_chan??0;
 						data.dms_open = true;
-						data.cur_sel='dm';
+						data.cur_sel='channel';
 					}
 				}
 			}
@@ -313,16 +317,12 @@ async function render(){
 					else
 						delete data.cur_channel_obj.open;
 				}
-				if(data.cur_sel=='dm'){
-					delete data.dms_open;
-					data.cur_sel='guild';
-				}
 				if(data.cur_sel=='message')
 					data.cur_sel='channel';
 			}
 		}
 		else if(key=='\r'){
-			if(data.cur_sel=='channel'||data.cur_sel=='message'){
+			if(talkableSel.includes(data.cur_sel)){
 				stdin.setRawMode(false);
 				enableUpdates=false;
 				print("< > ")
@@ -348,8 +348,8 @@ async function render(){
 			frame+=1;
 			enableUpdates=false;
 			print(':')
-			let command = await input();
-			if(command=='q\n'){
+			let command = (await input()).trim();
+			if(command=='q'){
 				process.exit();
 				return;
 			}
