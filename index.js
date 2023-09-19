@@ -188,9 +188,11 @@ async function render(){
 								if(e in embed&&embed[e])
 									cont += embed[e]
 					}
+					cont = cont.replaceAll('\033','^[').replaceAll('\013','^G');
+					
 					do{
 						let line = cont.slice(0,process.stdout.columns-len-13).split(/[\n\r]/)[0];
-						curout.push(prefix + "     " + line.replaceAll('\033','^[')+"\033[0m")
+						curout.push(prefix + "     " + line+"\033[0m")
 						cont = cont.slice(line.length);
 						if(line.length==0)cont = cont.slice(1);
 						while(cont[0]=='\n'||cont[0]=='\r')
