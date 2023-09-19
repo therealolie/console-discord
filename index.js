@@ -172,7 +172,7 @@ async function render(){
 						if(msg.type=='REPLY'){
 							try{
 								let reply = await msg.fetchReference();
-								temp += " → " + reply.author.username + " → " + reply.content.slice(0,process.stdout.columns-15-msg.author.username.length-reply.author.username.length-len).replaceAll('\n','  ');
+								temp += " → " + reply.author.username + " → " + reply.content.replaceAll('\n','  ').slice(0,process.stdout.columns-11-msg.author.username.length-reply.author.username.length-len);
 							}catch(err){
 								temp += " → \033[3mDeleted Message\033[0m";
 							}
@@ -189,7 +189,7 @@ async function render(){
 									cont += embed[e]
 					}
 					do{
-						let line = cont.slice(0,process.stdout.columns-len-out.length*10).split(/[\n\r]/)[0];
+						let line = cont.slice(0,process.stdout.columns-len-13).split(/[\n\r]/)[0];
 						curout.push(prefix + "     " + line.replaceAll('\033','^[')+"\033[0m")
 						cont = cont.slice(line.length);
 						if(line.length==0)cont = cont.slice(1);
@@ -225,7 +225,10 @@ async function render(){
 		for(let b in out){
 			let text = out[b][a-lines+out[b].length]??"";
 			let len = text.replaceAll(new RegExp("\033\[[0-9;]*?m","g"),'').length;
-			print(text+" ".repeat(lens[b]-len+5))
+			if(out.length-1!=b)
+				print(text+" ".repeat(lens[b]-len+5))
+			else
+				print(text);
 		}
 		print("\n")
 	}
