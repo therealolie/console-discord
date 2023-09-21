@@ -1,7 +1,6 @@
-
 const fs = require('fs');
-const { Client, Events, GatewayIntentBits } = require('discord.js-selfbot-v13');
-const client = new Client({ checkUpdate: false });
+const { Client, Events, GatewayIntentBits } = require('discord.js');
+const client = new Client({ intents: 4194303, checkUpdate: false });
 const {min, max, floor, ceil} = Math;
 const stdin = process.stdin;
 stdin.resume();
@@ -29,7 +28,7 @@ const data = {
 	dm_list:[],
 };
 
-const allowedChannelTypes = ['DM','GUILD_PUBLIC_THREAD','GUILD_PRIVATE_THREAD','GUILD_TEXT'];
+const allowedChannelTypes = [1,11,12,0];
 const talkableSel = ['channel','message']; 
 const mobile = process.stdout.columns<80;
 
@@ -43,34 +42,12 @@ async function render(){
 	{
 		out.push([])
 		let curout = out[out.length-1];
-		let raw_guilds = await client.guilds.cache.map(guild => guild);
-		let home_guilds = Array.from(raw_guilds);
-		let raw_folders = Array.from(client.settings.guildFolder.cache.map(f=>f));
-		for(let a of raw_folders)
-			for(let b of a.guilds.map(g=>g))
-				if(home_guilds.includes(b))
-					home_guilds.splice(home_guilds.indexOf(b),1);
-		let folders = home_guilds.concat(raw_folders);
-		for(let i in folders){
-			let fold = folders[i];
-			if(fold.color) //check if its really a folder
-				fold.childs = Array.from(fold.guilds.map(g=>g));
-			else fold.childs = [];
-			fold.childs.sort((a,b)=>fold.guild_ids.indexOf(a.id)-fold.guild_ids.indexOf(b.id));
-			fold.prefix=(i!=folders.length-1?'├':'└');
-			fold.childprefix = (i!=folders.length-1?'│ ':'  '); 
-		}
-		let guilds = [];
-		for(let i in folders){
-			let fold = folders[i];
-			guilds.push(fold);
-			if(fold.open)
-				for(let j in fold.childs){
-					let child = fold.childs[j];
-					child.prefix = fold.childprefix + (j!=fold.childs.length-1?'├':'└');
-					child.childprefix = fold.childprefix + (j!=fold.childs.length-1?'│ ':'  ');
-					guilds.push(child);
-				}
+		let guilds = await client.guilds.cache.map(guild => guild);
+		for(let i in guilds){
+			let guild = guilds[i];
+			guild.prefix = guilds.length-1!=i?'├':'└';
+			guild.childprefix = guilds.length-1!=i?'│ ':'  ';
+
 		}
 		data.guild_amt = guilds.length;
 		curout.push((data.cur_guild==-1?data.cur_sel=='guild'?"\033[30;107m":"\033[30;47m":"") + client.user.username + "\033[0m")
@@ -172,7 +149,7 @@ async function render(){
 						if(msg.type=='REPLY'){
 							try{
 								let reply = await msg.fetchReference();
-								temp += " → " + reply.author.username + " → " + reply.content.replaceAll('\n','  ').slice(0,process.stdout.columns-7-msg.author.username.length-reply.author.username.length-len);
+								temp += " → " + reply.author.username + " → " + reply.content.replaceAll('\n','  ').slice(0,process.stdout.columns-11-msg.author.username.length-reply.author.username.length-len);
 							}catch(err){
 								temp += " → \033[3mDeleted Message\033[0m";
 							}
@@ -191,7 +168,7 @@ async function render(){
 					cont = cont.replaceAll('\033','^[').replaceAll('\013','^G');
 					
 					do{
-						let line = cont.slice(0,process.stdout.columns-len-7).split(/[\n\r]/)[0];
+						let line = cont.slice(0,process.stdout.columns-len-11).split(/[\n\r]/)[0];
 						curout.push(prefix + "     " + line+"\033[0m")
 						cont = cont.slice(line.length);
 						if(line.length==0)cont = cont.slice(1);
@@ -239,21 +216,11 @@ async function render(){
 
 (async ()=>{
 	{
-		let logintype = (await input('Log in using TOKEN or PASSWORD:')).trim();
-		if(logintype.toUpperCase()[0]!='P'){
-			let TOKEN = (await input('TOKEN: ')).trim();
-			if(TOKEN=="") TOKEN = (""+fs.readFileSync('../token.txt')).trim();
-			let pro = new Promise(res => client.once('ready',res))
-			client.login(TOKEN)
-			await pro;
-		}else{
-			let name = (await input('name:')).trim();
-			let pass = (await input('password:')).trim();
-			let mfa = (await input('mfa code (leave blank if not enabled):')).trim();
-			let pro = new Promise(res => client.once('ready',res))
-			client.normalLogin(name, pass, mfa)
-			await pro;
-		}
+		let TOKEN = (await input('TOKEN: ')).trim();
+		if(TOKEN=="") TOKEN = (""+fs.readFileSync('../token.txt')).trim();
+		let pro = new Promise(res => client.once('ready',res))
+		client.login(TOKEN)
+		await pro;
 		client.on('messageCreate',(msg)=>{
 			if(msg.channel.id in data.channels){
 				data.channels[msg.channel.id].msgs.push(msg);
