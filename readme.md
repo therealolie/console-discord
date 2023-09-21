@@ -1,5 +1,6 @@
 # Console-based discord client
-
+the main branch is for usr accounts/tokens, for bot accounts checkout the 'bot' branch
+the 'dev' branch may contain broken code/is bugged/etc., dont use it, dont report bugs on it
 ## Limitations
  - this app was only tested on linux/android, prob works fine on on other platforms
  - custom emojis are displayed as '?'
