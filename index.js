@@ -26,7 +26,6 @@ const data = {
 	cur_channel_obj:null,
 	cur_message_obj:null,
 	emojis:require('./emojis.json'),
-	dm_list:[],
 };
 
 const allowedChannelTypes = ['DM','GUILD_PUBLIC_THREAD','GUILD_PRIVATE_THREAD','GUILD_TEXT'];
@@ -395,8 +394,12 @@ async function render(){
 					}
 				}
 			}
-		}
-		else{
+		}else if(key=='d'){
+			if(data.cur_sel=="message"){
+				await(await data.cur_message_obj.author.fetch()).dmChannel.fetch();
+				data.cur_guild=-1;
+			}
+		}else{
 			rend = false;
 		}
 	}
