@@ -75,7 +75,7 @@ async function render(){
 		data.guild_amt = guilds.length;
 		curout.push((data.cur_guild==-1?data.cur_sel=='guild'?"\033[30;107m":"\033[30;47m":"") + client.user.username + "\033[0m")
 		//dms
-		if(data.dms_open){
+		if(data.guilds[-1]?.open){
 			if(data.cur_guild==-1)data.cur_guild_obj = client.user;
 			let channels = Array.from(await client.channels.cache.filter(c=>c.type=='DM'));
 			data.dm_list = [];
@@ -172,7 +172,7 @@ async function render(){
 						if(msg.type=='REPLY'){
 							try{
 								let reply = await msg.fetchReference();
-								temp += " → " + reply.author.username + " → " + reply.content.replaceAll('\n','  ').slice(0,process.stdout.columns-11-msg.author.username.length-reply.author.username.length-len);
+								temp += " → " + reply.author.username + " → " + reply.content.replaceAll('\n','  ').slice(0,process.stdout.columns-7-msg.author.username.length-reply.author.username.length-len);
 							}catch(err){
 								temp += " → \033[3mDeleted Message\033[0m";
 							}
@@ -191,7 +191,7 @@ async function render(){
 					cont = cont.replaceAll('\033','^[').replaceAll('\013','^G');
 					
 					do{
-						let line = cont.slice(0,process.stdout.columns-len-13).split(/[\n\r]/)[0];
+						let line = cont.slice(0,process.stdout.columns-len-7).split(/[\n\r]/)[0];
 						curout.push(prefix + "     " + line+"\033[0m")
 						cont = cont.slice(line.length);
 						if(line.length==0)cont = cont.slice(1);
@@ -304,14 +304,13 @@ async function render(){
 						data.guilds[data.cur_guild] = data.guilds[data.cur_guild]??{};
 						data.guilds[data.cur_guild].open = true;
 						data.guilds[data.cur_guild].cur_chan = data.guilds[data.cur_guild].cur_chan??0;
-						data.dms_open = true;
 						data.cur_sel='channel';
 					}
 				}
 			}
 			if(key[2]=='D'){
 				if(data.cur_sel=='guild'){
-					if(data.cur_guild_obj.color)
+					if(data.cur_guild_obj.open)
 						delete data.cur_guild_obj.open;
 					else
 						delete data.guilds[data.cur_guild]?.open;
