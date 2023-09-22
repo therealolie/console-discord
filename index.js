@@ -6,9 +6,10 @@ const {min, max, floor, ceil} = Math;
 const stdin = process.stdin;
 stdin.resume();
 stdin.setEncoding('utf8');
+const log = console.log;
 console.log = (...args) => process.stdout.write(...args);
 const input = (args) => {
-	if(typeof args =='string'){
+	if(typeof args == 'string'){
 		console.log(args)
 		stdin.setRawMode(false);
 	}else{
@@ -48,9 +49,9 @@ async function render(){
 		let curout = out[out.length-1];
 		let raw_guilds = await client.guilds.cache.map(guild => guild);
 		let home_guilds = Array.from(raw_guilds);
-		let raw_folders = Array.from(client.settings.guildFolder.cache.map(f=>f));
+		let raw_folders = Array.from(client.settings.guildFolder.cache).map(x=>x[1]).filter(x=>x.id);
 		for(let a of raw_folders)
-			for(let b of a.guilds.map(g=>g))
+			for(let b of Array.from(a.guilds).map(x=>x[1]))
 				if(home_guilds.includes(b))
 					home_guilds.splice(home_guilds.indexOf(b),1);
 		let folders = home_guilds.concat(raw_folders);
@@ -80,12 +81,13 @@ async function render(){
 		//dms
 		if(data.guilds[-1]?.open){
 			if(data.cur_guild==-1)data.cur_guild_obj = client.user;
-			let channels = Array.from(await client.channels.cache.filter(c=>c.type=='DM'));
-			data.dm_list = [];
+			let temp = Array.from(await client.channels.cache.filter(c=>c.type=='DM'));
+			let channels = [];
+			for(let e of temp)channels.push(e[1])
+			channels.sort((a,b) => Number(BigInt(b.lastMessageId) - BigInt(a.lastMessageId)));
 			for(let i in channels){
-				let chan = channels[i][1];
+				let chan = channels[i];
 				chan.viewable = true;
-				data.dm_list.push(chan);
 				let text = channels.length-1!=i?'│ ├':'│ └';
 				text+=(i==data.guilds[-1].cur_chan?data.cur_sel=='channel'?"\033[30;107m":"\033[30;47m":"");
 				text+= chan.recipient.globalame??chan.recipient.username;
@@ -95,7 +97,7 @@ async function render(){
 					data.cur_thing = chan;
 				}
 			}
-			data.guilds[-1].chan_amt = data.dm_list.length;
+			data.guilds[-1].chan_amt = channels.length;
 		}
 		for(let i in guilds){
 			let guild = guilds[i]
@@ -262,6 +264,7 @@ async function render(){
 			client.normalLogin(name, pass, mfa)
 			await pro;
 		}
+		console.log('logged in!')
 		client.on('messageCreate',(msg)=>{
 			if(msg.channel.id in data.channels){
 				data.channels[msg.channel.id].msgs.push(msg);
@@ -354,7 +357,7 @@ async function render(){
 				process.exit();
 				return;
 			}
-			console.log(eval(command));
+			log(eval(command));
 			await input({raw:1});
 			enableUpdates=true;
 		}
@@ -398,9 +401,12 @@ async function render(){
 				data.guilds[data.cur_guild].open = true;
 				data.guilds[data.cur_guild].cur_chan = data.guilds[data.cur_guild].cur_chan??0;
 				data.cur_sel='channel';
-				let channels = Array.from(await client.channels.cache.filter(c=>c.type=='DM'));
+				let temp = Array.from(await client.channels.cache.filter(c=>c.type=='DM'));
+				let channels = [];
+				for(let e of temp)channels.push(e[1]);
+				channels.sort((a,b) => Number(BigInt(b.lastMessageId) - BigInt(a.lastMessageId)));
 				for(let i in channels){
-					let chan = channels[i][1];
+					let chan = channels[i];
 					if(chan.recipient.id==data.cur_message_obj.author.id){
 						data.guilds[-1].cur_chan = i;
 						break;
