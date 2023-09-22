@@ -17,9 +17,8 @@ the 'dev' branch may contain broken code/is bugged/etc., dont use it, dont repor
  - enter to write a message
  - r to reply while selecting a message
  - e to edit a message
+ - d to open user's dms (while selecting a message)
  - \+ to add reaction while selecting a message,
    enter the unicode version of the emoji, custom emojis not supported yet
  - q/CTRL+C to quit
- - : to evaluate javascipt code. Tips:
-  - data.cur\_{THING}\_sel is the current selected THING, so guild, channel or message, if you know discord.js you can use this to perform actions which are unavaliable yet
-  - to be added
+ - : to evaluate javascipt code, tip: data.cur\_{THING}\_sel is the current selected guild, channel or message, if you know discord.js you can use this to perform actions which arent avaliable yet.
