@@ -5,12 +5,16 @@ const {min, max, floor, ceil} = Math;
 const stdin = process.stdin;
 stdin.resume();
 stdin.setEncoding('utf8');
-
-const print = (prin) => {
-	if(prin!==undefined) process.stdout.write(prin);
-}
-const input = (prin) => {
-	print(prin)
+console.log = (...args) => process.stdout.write(...args);
+const input = (args) => {
+	if(typeof args =='string'){
+		console.log(args)
+		stdin.setRawMode(false);
+	}else{
+		if(args?.print)console.log(args.print)
+		if(args?.raw) stdin.setRawMode(true);
+		else stdin.setRawMode(false);
+	}
 	return new Promise(res => stdin.once('data',res));
 }
 const data = {
@@ -25,7 +29,6 @@ const data = {
 	cur_channel_obj:null,
 	cur_message_obj:null,
 	emojis:require('./emojis.json'),
-	dm_list:[],
 };
 
 const allowedChannelTypes = [1,11,12,0];
@@ -127,34 +130,63 @@ async function render(){
 		if(talkableSel.includes(data.cur_sel)){
 			let chan = data.cur_channel_obj;
 			if(allowedChannelTypes.includes(chan.type)&&chan.viewable){
-				if(!(chan.id in data.channels)){
-					let msgs = await chan.messages.fetch({limit: 50});
-				data.channels[chan.id] = {msgs:[]};
-					for(let a of msgs){
-						data.channels[chan.id].msgs.unshift(a[1]);
-					}
-				}
-				let msgs = data.channels[chan.id].msgs;
-				let last = "0";
-				for(let a in msgs){
-					let prefix = "\033[0m"
-					if(data.cur_sel=='message'&&a==data.cur_message){
-						prefix = "\033[30;107m";
-						data.cur_message_obj = msgs[a];
-						data.cur_thing = msgs[a];
-					}
-					let msg = msgs[a];
-					if(last!=msg.author.id||msg.type=='REPLY'){
-						let temp = prefix+msg.author.username+"\033[0m";
-						if(msg.type=='REPLY'){
-							try{
-								let reply = await msg.fetchReference();
-								temp += " → " + reply.author.username + " → " + reply.content.replaceAll('\n','  ').slice(0,process.stdout.columns-11-msg.author.username.length-reply.author.username.length-len);
-							}catch(err){
-								temp += " → \033[3mDeleted Message\033[0m";
-							}
+				if(!(chan.id in data.channels))
+					data.channels[chan.id] = {};
+				if(!("msgs" in data.channels[chan.id])){
+					data.channels[chan.id] = {msgs:[]};
+					chan.messages.fetch({limit: 50}).then(msgs=>{;
+						for(let a of msgs)
+							data.channels[chan.id].msgs.unshift(a[1]);
+						render();
+					});
+					curout.push('Loading...');
+				}else{
+					let msgs = data.channels[chan.id].msgs;
+					let last = "0";
+					for(let a in msgs){
+						let prefix = "\033[0m"
+						if(data.cur_sel=='message'&&a==data.cur_message){
+							prefix = "\033[30;107m";
+							data.cur_message_obj = msgs[a];
+							data.cur_thing = msgs[a];
 						}
-						curout.push(temp)
+						let msg = msgs[a];
+						if(last!=msg.author.id||msg.type=='REPLY'){
+							let temp = prefix+msg.author.username+"\033[0m";
+							if(msg.type=='REPLY'){
+								try{
+									let reply = await msg.fetchReference();
+									temp += " → " + reply.author.username + " → " + reply.content.replaceAll('\n','  ').slice(0,process.stdout.columns-11-msg.author.username.length-reply.author.username.length-len);
+								}catch(err){
+									temp += " → \033[3mDeleted Message\033[0m";
+								}
+							}
+							curout.push(temp)
+						}
+						last = msg.author.id;
+						let cont = msg.content;
+						if('embeds' in msg){
+							cont += "\n";
+							for(let embed of msg.embeds)
+								for(let e of ['title','description'])
+									if(e in embed&&embed[e])
+										cont += embed[e]
+						}
+						cont = cont.replaceAll('\033','^[').replaceAll('\013','^G');
+						
+						do{
+							let line = cont.slice(0,process.stdout.columns-len-11).split(/[\n\r]/)[0];
+							curout.push(prefix + "     " + line+"\033[0m")
+							cont = cont.slice(line.length);
+							if(line.length==0)cont = cont.slice(1);
+							while(cont[0]=='\n'||cont[0]=='\r')
+								cont=cont.slice(1);
+						}while(cont.length>0);
+						let emojis = Array.from(msg.reactions.cache);
+						let temp = "";
+						for(let a of emojis)
+							temp += (a[1].count-1?a[1].count:"")+(a[0].length<5?a[0]:'?')+" ";
+						if(temp) curout.push("     \033[100m "+temp+"\033[0m")
 					}
 					last = msg.author.id;
 					let cont = msg.content;
@@ -199,17 +231,17 @@ async function render(){
 			lens[a] = max(lens[a],b.replaceAll(new RegExp("\033\[[0-9;]*?m","g"),'').length)
 	}
 	if(frame-1!=curframe||!enableUpdates) return;
-	print('\n\n\n\n\n\n\n\n\n\n\033[2J')
+	console.log('\n\n\n\n\n\n\n\n\n\n\033[2J')
 	for(let a=0;a<lines;a++){
 		for(let b in out){
 			let text = out[b][a-lines+out[b].length]??"";
 			let len = text.replaceAll(new RegExp("\033\[[0-9;]*?m","g"),'').length;
 			if(out.length-1!=b)
-				print(text+" ".repeat(lens[b]-len+5))
+				console.log(text+" ".repeat(lens[b]-len+5))
 			else
-				print(text);
+				console.log(text);
 		}
-		print("\n")
+		console.log("\n")
 	}
 	
 }
@@ -234,8 +266,7 @@ async function render(){
 		if(rend)
 			render();
 		rend = true;
-		stdin.setRawMode(true);
-		let key = await input();
+		let key = await input({raw:1});
 		if(key=='q'||key=='\u0003')
 			process.exit()
 		else if(key[0]=='\u001b'){
@@ -258,16 +289,9 @@ async function render(){
 						data.cur_channel_obj.open = true;
 				}
 				if(data.cur_sel=='guild'){
-					if(data.cur_guild!=-1){
-						if(data.cur_guild_obj.color){
-							data.cur_guild_obj.open= true;
-						}else{
-							data.guilds[data.cur_guild] = data.guilds[data.cur_guild]??{};
-							data.guilds[data.cur_guild].open = true;
-							data.guilds[data.cur_guild].cur_chan = data.guilds[data.cur_guild].cur_chan??0;
-							data.cur_sel='channel';
-						}
-					}else{
+					if(data.cur_guild!=-1&&data.cur_guild_obj.color)
+						data.cur_guild_obj.open= true;
+					else{
 						data.guilds[data.cur_guild] = data.guilds[data.cur_guild]??{};
 						data.guilds[data.cur_guild].open = true;
 						data.guilds[data.cur_guild].cur_chan = data.guilds[data.cur_guild].cur_chan??0;
@@ -294,9 +318,8 @@ async function render(){
 		}
 		else if(key=='\r'){
 			if(talkableSel.includes(data.cur_sel)){
-				stdin.setRawMode(false);
 				enableUpdates=false;
-				print("< > ")
+				console.log("< > ")
 				let msg = await input();
 				if(!msg.includes("\033"))
 					data.cur_channel_obj.send(msg).catch(()=>{});
@@ -305,9 +328,8 @@ async function render(){
 		}
 		else if(key=='r'){
 			if(data.cur_sel=='message'){
-				stdin.setRawMode(false);
 				enableUpdates=false;
-				print("<R> ")
+				console.log("<R> ")
 				let msg = await input();
 				if(!msg.includes("\033"))
 					data.cur_message_obj.reply(msg).catch(()=>{});
@@ -315,24 +337,22 @@ async function render(){
 			}
 		}
 		else if(key==':'){
-			stdin.setRawMode(false);
 			frame+=1;
 			enableUpdates=false;
-			print(':')
+			console.log(':')
 			let command = (await input()).trim();
 			if(command=='q'){
 				process.exit();
 				return;
 			}
 			console.log(eval(command));
-			await input();
+			await input({raw:1});
 			enableUpdates=true;
 		}
 		else if(key=='+'){
 			if(data.cur_sel=='message'){
-				stdin.setRawMode(false);
 				frame+=1;
-				print('+ ')
+				console.log('+ ')
 				let emote = (await input()).trim();
 				if(!emote.includes("\033")){
 					try{
@@ -349,9 +369,8 @@ async function render(){
 		}
 		else if(key=='e'){
 			if(data.cur_sel=='message'){
-				stdin.setRawMode(false);
 				frame+=1;
-				print('<E> ')
+				console.log('<E> ')
 				let edit = (await input()).trim();
 				if(!edit.includes("\033")){
 					try{
@@ -362,8 +381,24 @@ async function render(){
 					}
 				}
 			}
-		}
-		else{
+		}else if(key=='d'){
+			if(data.cur_sel=="message"){
+				await data.cur_message_obj.author.createDM();
+				data.cur_guild=-1;
+				data.guilds[data.cur_guild] = data.guilds[data.cur_guild]??{};
+				data.guilds[data.cur_guild].open = true;
+				data.guilds[data.cur_guild].cur_chan = data.guilds[data.cur_guild].cur_chan??0;
+				data.cur_sel='channel';
+				let channels = Array.from(await client.channels.cache.filter(c=>c.type=='DM'));
+				for(let i in channels){
+					let chan = channels[i][1];
+					if(chan.recipient.id==data.cur_message_obj.author.id){
+						data.guilds[-1].cur_chan = i;
+						break;
+					}
+				}
+			}
+		}else{
 			rend = false;
 		}
 	}
