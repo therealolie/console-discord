@@ -81,7 +81,7 @@ async function render(){
 		//dms
 		if(data.guilds[-1]?.open){
 			if(data.cur_guild==-1)data.cur_guild_obj = client.user;
-			let temp = Array.from(await client.channels.cache.filter(c=>c.type=='DM'));
+			let temp = Array.from(await client.channels.cache.filter(c=>['GROUP_DM','DM'].includes(c.type)));
 			let channels = [];
 			for(let e of temp)channels.push(e[1])
 			channels.sort((a,b) => Number(BigInt(b.lastMessageId) - BigInt(a.lastMessageId)));
@@ -89,8 +89,8 @@ async function render(){
 				let chan = channels[i];
 				chan.viewable = true;
 				let text = channels.length-1!=i?'│ ├':'│ └';
-				text+=(i==data.guilds[-1].cur_chan?data.cur_sel=='channel'?"\033[30;107m":"\033[30;47m":"");
-				text+= chan.recipient.globalame??chan.recipient.username;
+				text += (i==data.guilds[-1].cur_chan?data.cur_sel=='channel'?"\033[30;107m":"\033[30;47m":"");
+				text += chan.recipient?.nickname??chan.recipient?.globalName??chan.recipient?.username??chan.name;
 				curout.push(text + "\033[0m");
 				if(i==data.guilds[-1].cur_chan &&data.cur_guild==-1){
 					data.cur_channel_obj = chan;
