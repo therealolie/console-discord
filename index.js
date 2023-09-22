@@ -188,30 +188,6 @@ async function render(){
 							temp += (a[1].count-1?a[1].count:"")+(a[0].length<5?a[0]:'?')+" ";
 						if(temp) curout.push("     \033[100m "+temp+"\033[0m")
 					}
-					last = msg.author.id;
-					let cont = msg.content;
-					if('embeds' in msg){
-						cont += "\n";
-						for(let embed of msg.embeds)
-							for(let e of ['title','description'])
-								if(e in embed&&embed[e])
-									cont += embed[e]
-					}
-					cont = cont.replaceAll('\033','^[').replaceAll('\013','^G');
-					
-					do{
-						let line = cont.slice(0,process.stdout.columns-len-11).split(/[\n\r]/)[0];
-						curout.push(prefix + "     " + line+"\033[0m")
-						cont = cont.slice(line.length);
-						if(line.length==0)cont = cont.slice(1);
-						while(cont[0]=='\n'||cont[0]=='\r')
-							cont=cont.slice(1);
-					}while(cont.length>0);
-					let emojis = Array.from(msg.reactions.cache);
-					let temp = "";
-					for(let a of emojis)
-						temp += (a[1].count-1?a[1].count:"")+(a[0].length<5?a[0]:'?')+" ";
-					if(temp) curout.push("     \033[100m "+temp+"\033[0m")
 				}
 			}
 			else if(chan.viewable==false){
