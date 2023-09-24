@@ -8,16 +8,27 @@ stdin.resume();
 stdin.setEncoding('utf8');
 const log = console.log;
 console.log = (...args) => process.stdout.write(...args);
-const input = (args) => {
+const input_history = {};
+const input = async (args) => {
 	if(typeof args == 'string'){
 		console.log(args)
 		stdin.setRawMode(false);
-	}else{
-		if(args?.print)console.log(args.print)
-		if(args?.raw) stdin.setRawMode(true);
-		else stdin.setRawMode(false);
+		return new Promise(res => stdin.once('data',res));
 	}
-	return new Promise(res => stdin.once('data',res));
+	if(args?.print)console.log(args.print)
+	if(args?.raw){
+		stdin.setRawMode(true);
+		return new Promise(res => stdin.once('data',res));
+	}
+	stdin.setRawMode(true);
+	let type = 'null';
+	if(args?.type)type = args.type;
+	let history = input_history[type]??[];
+	let inp = args?.suggest??"";
+	while(true){
+		let cur_inp = await input({raw:true});
+		log(cur_inp)
+	}
 }
 const data = {
 	cur_guild:0,
@@ -32,6 +43,7 @@ const data = {
 	cur_message_obj:null,
 	emojis:require('./emojis.json'),
 };
+
 
 const allowedChannelTypes = ['DM','GROUP_DM','GUILD_PUBLIC_THREAD','GUILD_PRIVATE_THREAD','GUILD_TEXT'];
 const talkableSel = ['channel','message']; 
@@ -335,7 +347,7 @@ async function render(){
 			}
 		}
 		else if(key=='\r'){
-			if(talkableSel.includes(data.cur_sel)&&allowedChannelTypes.includes(data.cur_channel_obj?.type){
+			if(talkableSel.includes(data.cur_sel)&&allowedChannelTypes.includes(data.cur_channel_obj?.type)){
 				enableUpdates=false;
 				console.log("< > ")
 				let msg = await input();
