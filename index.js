@@ -33,7 +33,7 @@ const data = {
 	emojis:require('./emojis.json'),
 };
 
-const allowedChannelTypes = ['DM','GUILD_PUBLIC_THREAD','GUILD_PRIVATE_THREAD','GUILD_TEXT'];
+const allowedChannelTypes = ['DM','GROUP_DM','GUILD_PUBLIC_THREAD','GUILD_PRIVATE_THREAD','GUILD_TEXT'];
 const talkableSel = ['channel','message']; 
 const mobile = process.stdout.columns<80;
 
@@ -90,7 +90,13 @@ async function render(){
 				chan.viewable = true;
 				let text = channels.length-1!=i?'│ ├':'│ └';
 				text += (i==data.guilds[-1].cur_chan?data.cur_sel=='channel'?"\033[30;107m":"\033[30;47m":"");
-				text += chan.recipient?.nickname??chan.recipient?.globalName??chan.recipient?.username??chan.name;
+				let temp = chan.recipient?.nickname??chan.recipient?.globalName??chan.name;
+				if(temp!=null){
+					text+=temp;
+				}else{
+					let name = Array.from(chan.recipients).map(x=>x[1]).filter(x=>x.id!=client.user.id).map(x=>x.globalName).join(", ");
+					text += name;
+				}
 				curout.push(text + "\033[0m");
 				if(i==data.guilds[-1].cur_chan &&data.cur_guild==-1){
 					data.cur_channel_obj = chan;
