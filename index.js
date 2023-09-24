@@ -27,7 +27,7 @@ const input = async (args) => {
 	let inp = args?.suggest??"";
 	while(true){
 		let cur_inp = await input({raw:true});
-		log(cur_inp)
+		log(JSON.stringify(cur_inp))
 	}
 }
 const data = {
