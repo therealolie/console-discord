@@ -3,22 +3,27 @@ const fs = require('fs');
 const { Client, Events, GatewayIntentBits } = require('discord.js-selfbot-v13');
 const client = new Client({ checkUpdate: false });
 const {min, max, floor, ceil} = Math;
-const stdin = process.stdin;
-stdin.resume();
-stdin.setEncoding('utf8');
+process.stdin.resume();
+process.stdin.setEncoding('utf8');
+const rl = require('readline');
+rl.emitKeypressEvents(process.stdin);
 const log = console.log;
 console.log = (...args) => process.stdout.write(...args);
 const input_history = {};
+const cur_prompt = {
+	curs_pos:0,
+	prefix:"",
+	text:""
+}
 const input = async (args) => {
+	const stdin = process.stdin;
 	if(typeof args == 'string'){
-		console.log(args)
-		stdin.setRawMode(false);
-		return new Promise(res => stdin.once('data',res));
+		return await input({print:args});
 	}
 	if(args?.print)console.log(args.print)
 	if(args?.raw){
 		stdin.setRawMode(true);
-		return new Promise(res => stdin.once('data',res));
+		return new Promise(res => stdin.once('keypress',(...a)=>res(a[1])));
 	}
 	stdin.setRawMode(true);
 	let type = 'null';
@@ -27,7 +32,7 @@ const input = async (args) => {
 	let inp = args?.suggest??"";
 	while(true){
 		let cur_inp = await input({raw:true});
-		log(JSON.stringify(cur_inp))
+		if(cur_inp.sequence=="\003")process.exit()
 	}
 }
 const data = {
@@ -296,7 +301,7 @@ async function render(){
 		if(rend)
 			render();
 		rend = true;
-		let key = await input({raw:1});
+		let key,_ = await input({raw:1});
 		if(key=='q'||key=='\u0003')
 			process.exit()
 		else if(key[0]=='\u001b'){
@@ -432,6 +437,8 @@ async function render(){
 				}
 			}
 		}else{
+			console.log(key);
+			return;	
 			rend = false;
 		}
 	}
