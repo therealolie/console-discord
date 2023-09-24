@@ -293,7 +293,7 @@ async function render(){
 			}
 		}
 		else if(key=='\r'){
-			if(talkableSel.includes(data.cur_sel)&&allowedChannelTypes.includes(data.cur_channel_obj?.type){
+			if(talkableSel.includes(data.cur_sel)&&allowedChannelTypes.includes(data.cur_channel_obj?.type)){
 				enableUpdates=false;
 				console.log("< > ")
 				let msg = await input();
