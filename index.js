@@ -16,58 +16,129 @@ const cur_prompt = {
 	curs_pos:0,
 	prefix:"",
 	text:"",
+	history:[],
 }
 const print_prompt = async () => {
-	if(!cur_promot.active) return;
+	if(!cur_prompt.active) return;
+	/*log(cur_prompt);
+	return;//*/
 	if(cur_prompt.multiline){
 		cur_prompt.text.forEach((e,i)=>{
-			console.log(cur_prompt.prefix+e+(i==cur_prompt.text.length-1?"":"\n"))	
+			console.log(cur_prompt.prefix+e+(i==cur_prompt.text.length-1?"":"\n"))
 		})
+		if(cur_prompt.text.length-1!=cur_prompt.curs_pos[0])
+			console.log('\033['+(cur_prompt.text.length-cur_prompt.curs_pos[0]-1)+'A')
+		if(cur_prompt.text[cur_prompt.curs_pos[0]].length!=cur_prompt.curs_pos[1])
+			console.log('\033['+(cur_prompt.text[cur_prompt.curs_pos[0]].length-cur_prompt.curs_pos[1])+'D')
 	}else{
 		console.log(cur_prompt.prefix+cur_prompt.text)
+		if(cur_prompt.text.length!=cur_prompt.curs_pos)
+			console.log('\033['+(cur_prompt.text.length-cur_prompt.curs_pos)+'D')
 	}
 
 }
 const input = async (args) => {
 	const stdin = process.stdin;
 	if(typeof args == 'string'){
-		return await input({print:args});
+		return await input({prefix:args});
 	}
 	if(args?.raw){
 		if(args?.print)console.log(args.print)
 		stdin.setRawMode(true);
 		return await new Promise(res => stdin.once('keypress',(...a)=>res(a[1])));
 	}
-	cur_prompt.prefix = args?.print??"";
+	cur_prompt.prefix = args?.prefix??"";
 	stdin.setRawMode(true);
 	let type = 'null';
 	if(args?.type)type = args.type;
-	let history = input_history[type]??[];
 	let inp = args?.suggest??"";
 	cur_prompt.multiline = args?.multiline??false;
 	cur_prompt.text = args?.multiline?[""]:"";
-	cur_prompt.curspos = args?.multiline?[0,0]:0;
+	cur_prompt.curs_pos = args?.multiline?[0,0]:0;
 	cur_prompt.active = true;
+	cur_prompt.history = JSON.parse(JSON.stringify(input_history[type]??[]));
+	log(cur_prompt)
 	console.log(cur_prompt.prefix)
 	while(true){
-
 		let cur_inp = await input({raw:true});
+		log(cur_inp);
 		let actions = {
 			"\003":()=>process.exit(),
+			"\033[D":()=>{
+				if(cur_prompt.multiline){
+					if(!cur_prompt.curs_pos[1]){
+						if(cur_prompt.curs_pos[0]){
+							cur_prompt.curs_pos[0] -= 1;
+							cur_prompt.curs_pos[1] = cur_prompt.text[cur_prompt.curs_pos[0]-1].length;
+						}
+					}else{
+						cur_prompt.curs_pos[1]-=1;
+					}
+				}else
+					cur_prompt.curs_pos=max(0,cur_prompt.curs_pos-1);
+			},
+			"\033[C":()=>{
+				if(cur_prompt.multiline){
+					if(cur_prompt.curs_pos[1]==cur_prompt.text[cur_prompt.curs_pos[0]].length){
+						if(cur_prompt.curs_pos[0]+1 in cur_prompt.text)
+							cur_prompt.curs_pos = [cur_prompt.curs_pos[0]+1,0]
+					}else
+						cur_prompt.curs_pos[1]+=1;
+				}else
+					cur_prompt.curs_pos=min(cur_prompt.text.length,cur_prompt.curs_pos+1);
+			},
+			"\033[B":()=>{
+
+				if(cur_prompt.multiline){
+				
+				}else
+					cur_prompt.curs_pos=cur_prompt.text.length;
+			},
+			"\033[A":()=>{
+				if(cur_prompt.multiline){
+				
+				}else
+					cur_prompt.curs_pos=0;
+			},
+			"\x7F":()=>{
+				if(cur_prompt.multiline){
+
+				}else{
+					if(cur_prompt.curs_pos){
+						cur_prompt.text = cur_prompt.text.slice(0,cur_prompt.curs_pos-1) + cur_prompt.text.slice(cur_prompt.curs_pos);
+						cur_prompt.curs_pos-=1;
+					}
+				}
+			},
+		}
+		if(cur_inp.sequence=="\r"){
+			log(cur_inp)
+			if(!cur_inp.multiline)break;
+			log(cur_inp)
+			if(!cur_inp.shift)break;
+			cur_prompt.text.splice(cur_prompt.curs_pos[0],0,'');
+			cur_prompt.curs_pos = [cur_prompt.curs_pos[0]+1,0]
+			
 		}
 		if(cur_inp.sequence in actions){
 			actions[cur_inp.sequence]();
-			continue;
-		}
-		cur_prompt.text+=cur_inp.sequence;
-		if(cur_inp.sequence=="\r"){
-			if(!cur_inp.multiline)break;
+		}else{
+			if(cur_prompt.multiline){
+				let text = cur_prompt.text[cur_prompt.curs_pos[0]]
+				cur_prompt.text[cur_prompt.curs_pos[0]] = text.slice(0,cur_prompt.curs_pos[1]) + cur_inp.sequence + text.slice(cur_prompt.curs_pos[1]);
+				cur_prompt.curs_pos[1] += cur_inp.sequence.length;
+			}else{
+				cur_prompt.text = cur_prompt.text.slice(0,cur_prompt.curs_pos) + cur_inp.sequence + cur_prompt.text.slice(cur_prompt.curs_pos);
+				cur_prompt.curs_pos += cur_inp.sequence.length;
+			}
 		}
 		if(args?.norender) render();
 		else{
+			
 			if(cur_prompt.multiline){
 				console.log("\r\008".repeat(cur_prompt.text.length-1)+"\r")
 			}else console.log("\r")
+			console.log("\033[J")
 			print_prompt();
 		}
 	}
@@ -86,9 +157,8 @@ const data = {
 	channels:{},
 	cur_channel_obj:null,
 	cur_message_obj:null,
-	emojis:require('./emojis.json'),
 };
-
+const emojis = require('./emojis.json')
 
 const allowedChannelTypes = ['DM','GROUP_DM','GUILD_PUBLIC_THREAD','GUILD_PRIVATE_THREAD','GUILD_TEXT'];
 const talkableSel = ['channel','message']; 
@@ -311,6 +381,7 @@ async function render(){
 }
 
 (async ()=>{
+	await input({multiline:true,prefix:":"})
 	{
 		let logintype = (await input('Log in using TOKEN or PASSWORD:')).trim();
 		if(logintype.toUpperCase()[0]!='P'){
@@ -432,8 +503,8 @@ async function render(){
 				let emote = (await input()).trim();
 				if(!emote.includes("\033")){
 					try{
-						if(emote in data.emojis)
-							await data.cur_message_obj.react(data.emojis[emote]);
+						if(emote in emojis)
+							await data.cur_message_obj.react(emojis[emote]);
 						else 
 							await data.cur_message_obj.react(emote)
 					}catch(err){
