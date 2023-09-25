@@ -11,29 +11,69 @@ const log = console.log;
 console.log = (...args) => process.stdout.write(...args);
 const input_history = {};
 const cur_prompt = {
+	active:false,
+	multiline:false,
 	curs_pos:0,
 	prefix:"",
-	text:""
+	text:"",
+}
+const print_prompt = async () => {
+	if(!cur_promot.active) return;
+	if(cur_prompt.multiline){
+		cur_prompt.text.forEach((e,i)=>{
+			console.log(cur_prompt.prefix+e+(i==cur_prompt.text.length-1?"":"\n"))	
+		})
+	}else{
+		console.log(cur_prompt.prefix+cur_prompt.text)
+	}
+
 }
 const input = async (args) => {
 	const stdin = process.stdin;
 	if(typeof args == 'string'){
 		return await input({print:args});
 	}
-	if(args?.print)console.log(args.print)
 	if(args?.raw){
+		if(args?.print)console.log(args.print)
 		stdin.setRawMode(true);
-		return new Promise(res => stdin.once('keypress',(...a)=>res(a[1])));
+		return await new Promise(res => stdin.once('keypress',(...a)=>res(a[1])));
 	}
+	cur_prompt.prefix = args?.print??"";
 	stdin.setRawMode(true);
 	let type = 'null';
 	if(args?.type)type = args.type;
 	let history = input_history[type]??[];
 	let inp = args?.suggest??"";
+	cur_prompt.multiline = args?.multiline??false;
+	cur_prompt.text = args?.multiline?[""]:"";
+	cur_prompt.curspos = args?.multiline?[0,0]:0;
+	cur_prompt.active = true;
+	console.log(cur_prompt.prefix)
 	while(true){
+
 		let cur_inp = await input({raw:true});
-		if(cur_inp.sequence=="\003")process.exit()
+		let actions = {
+			"\003":()=>process.exit(),
+		}
+		if(cur_inp.sequence in actions){
+			actions[cur_inp.sequence]();
+			continue;
+		}
+		cur_prompt.text+=cur_inp.sequence;
+		if(cur_inp.sequence=="\r"){
+			if(!cur_inp.multiline)break;
+		}
+		if(args?.norender) render();
+		else{
+			if(cur_prompt.multiline){
+				console.log("\r\008".repeat(cur_prompt.text.length-1)+"\r")
+			}else console.log("\r")
+			print_prompt();
+		}
 	}
+	console.log("\n")
+	cur_prompt.active = false;
+	return cur_prompt.text;
 }
 const data = {
 	cur_guild:0,
@@ -301,7 +341,8 @@ async function render(){
 		if(rend)
 			render();
 		rend = true;
-		let key,_ = await input({raw:1});
+		let keypress = await input({raw:1});
+		let key = keypress.sequence;
 		if(key=='q'||key=='\u0003')
 			process.exit()
 		else if(key[0]=='\u001b'){
