@@ -225,7 +225,7 @@ async function render(){
 (async ()=>{
 	{
 		let TOKEN = (await input('TOKEN: ')).trim();
-		if(TOKEN=="") TOKEN = (""+fs.readFileSync('../token.txt')).trim();
+		if(TOKEN=="") TOKEN = (""+fs.readFileSync('../bottoken.txt')).trim();
 		let pro = new Promise(res => client.once('ready',res))
 		client.login(TOKEN)
 		await pro;
