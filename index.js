@@ -502,7 +502,6 @@ async function render(){
 			}
 		}else{
 			console.log(key);
-			return;	
 			rend = false;
 		}
 	}
