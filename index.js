@@ -1,23 +1,113 @@
-
 const fs = require('fs');
 const { Client, Events, GatewayIntentBits } = require('discord.js-selfbot-v13');
 const client = new Client({ checkUpdate: false });
 const {min, max, floor, ceil} = Math;
-const stdin = process.stdin;
-stdin.resume();
-stdin.setEncoding('utf8');
+process.stdin.resume();
+process.stdin.setEncoding('utf8');
+const rl = require('readline');
+rl.emitKeypressEvents(process.stdin);
 const log = console.log;
 console.log = (...args) => process.stdout.write(...args);
-const input = (args) => {
-	if(typeof args == 'string'){
-		console.log(args)
-		stdin.setRawMode(false);
-	}else{
-		if(args?.print)console.log(args.print)
-		if(args?.raw) stdin.setRawMode(true);
-		else stdin.setRawMode(false);
+const input_history = {};
+const cur_prompt = {
+	backslashing:false,
+	active:false,
+	curs_pos:0,
+	prefix:"",
+	text:"",
+	history:[],
+	go_down:0,
+}
+const print_prompt = async () => {
+	if(!cur_prompt.active) return;
+	let temp = cur_prompt.text;
+	if(cur_prompt.backslashing)
+		temp = temp.slice(0,cur_prompt.curs_pos) + "\033[47;30m\\\033[0m" + temp.slice(cur_prompt.curs_pos);
+	temp = temp.replaceAll('\n',"\033[47;30m\\n\033[0m")
+	console.log(cur_prompt.prefix+temp)
+	if(cur_prompt.text.length!=cur_prompt.curs_pos){
+		console.log('\033['+(cur_prompt.text.length-cur_prompt.curs_pos) + 'D')
 	}
-	return new Promise(res => stdin.once('data',res));
+}
+const input = async (args) => {
+	const stdin = process.stdin;
+	if(typeof args == 'string'){
+		return await input({prefix:args});
+	}
+	if(args?.raw){
+		if(args?.print)console.log(args.print)
+		stdin.setRawMode(true);
+		return await new Promise(res => stdin.once('keypress',(...a)=>res(a[1])));
+	}
+	cur_prompt.prefix = args?.prefix??"";
+	stdin.setRawMode(true);
+	let type = 'null';
+	if(args?.type)type = args.type;
+	let inp = args?.suggest??"";
+	cur_prompt.backslashing = false;
+	cur_prompt.text = "";
+	cur_prompt.curs_pos = 0
+	cur_prompt.active = true;
+	cur_prompt.history = Object.create(input_history[type]??[]);
+	console.log(cur_prompt.prefix)
+	while(true){
+		let cur_inp = await input({raw:true});
+		function append(letter){
+			cur_prompt.text = cur_prompt.text.slice(0,cur_prompt.curs_pos) + letter + cur_prompt.text.slice(cur_prompt.curs_pos);
+			cur_prompt.curs_pos += cur_inp.sequence.length;
+		}
+		let actions = {
+			"\003":()=>process.exit(),
+			"\033[D":()=>{
+				cur_prompt.curs_pos=max(0,cur_prompt.curs_pos-1);
+			},
+			"\033[C":()=>{
+				cur_prompt.curs_pos=min(cur_prompt.text.length,cur_prompt.curs_pos+1);
+			},
+			"\033[B":()=>{
+				cur_prompt.curs_pos=cur_prompt.text.length;
+			},
+			"\033[A":()=>{
+				cur_prompt.curs_pos=0;
+			},
+			"\x7F":()=>{
+				if(cur_prompt.curs_pos){
+					cur_prompt.text = cur_prompt.text.slice(0,cur_prompt.curs_pos-1) + cur_prompt.text.slice(cur_prompt.curs_pos);
+					cur_prompt.curs_pos-=1;
+				}
+			},
+			"\\":()=>{
+				if(cur_prompt.backslashing){
+					cur_prompt.text = cur_prompt.text.slice(0,cur_prompt.curs_pos) + '\\' + cur_prompt.text.slice(cur_prompt.curs_pos);
+					cur_prompt.curs_pos += cur_inp.sequence.length;
+					cur_prompt.backslashing=false;
+				}else
+					cur_prompt.backslashing=true;
+			},
+		}
+		let back_actions = {
+			"\r":()=>append('\n'),
+			"n":()=>append('\n'),
+			"\\":()=>append('\\'),
+		}
+		if(cur_prompt.backslashing && cur_inp.sequence in back_actions){
+			back_actions[cur_inp.sequence]();
+			cur_prompt.backslashing = false; 
+		}else if(cur_inp.sequence=="\r")
+			break;
+		else if(cur_inp.sequence in actions)
+			actions[cur_inp.sequence]();
+		else
+			append(cur_inp.sequence);
+		if(args?.norender) render();
+		else{
+			console.log("\r\033[J")
+			print_prompt();
+		}
+	}
+	console.log("\n")
+	cur_prompt.active = false;
+	return cur_prompt.text;
 }
 const data = {
 	cur_guild:0,
@@ -30,8 +120,8 @@ const data = {
 	channels:{},
 	cur_channel_obj:null,
 	cur_message_obj:null,
-	emojis:require('./emojis.json'),
 };
+const emojis = require('./emojis.json')
 
 const allowedChannelTypes = ['DM','GROUP_DM','GUILD_PUBLIC_THREAD','GUILD_PRIVATE_THREAD','GUILD_TEXT'];
 const talkableSel = ['channel','message']; 
@@ -81,19 +171,17 @@ async function render(){
 		//dms
 		if(data.guilds[-1]?.open){
 			if(data.cur_guild==-1)data.cur_guild_obj = client.user;
-			let temp = Array.from(await client.channels.cache.filter(c=>['GROUP_DM','DM'].includes(c.type)));
-			let channels = [];
-			for(let e of temp)channels.push(e[1])
+			let channels = Array.from(await client.channels.cache.filter(c=>['GROUP_DM','DM'].includes(c.type))).map(e=>e[1]);
 			channels.sort((a,b) => Number(BigInt(b.lastMessageId) - BigInt(a.lastMessageId)));
 			for(let i in channels){
 				let chan = channels[i];
 				chan.viewable = true;
 				let text = channels.length-1!=i?'│ ├':'│ └';
 				text += (i==data.guilds[-1].cur_chan?data.cur_sel=='channel'?"\033[30;107m":"\033[30;47m":"");
-				let temp = chan.recipient?.nickname??chan.recipient?.globalName??chan.name;
-				if(temp!=null){
+				let temp = chan.recipient?.nickname??chan.recipient?.globalName??chan.recipient?.username??chan.name;
+				if(temp!=null)
 					text+=temp;
-				}else{
+				else{
 					let name = Array.from(chan.recipients).map(x=>x[1]).filter(x=>x.id!=client.user.id).map(x=>x.globalName).join(", ");
 					text += name;
 				}
@@ -123,7 +211,7 @@ async function render(){
 					cat.childs = Array.from(channels_raw.filter(chan => chan.parentId == cat.id));
 					cat.childs.sort((a, b) => a.position - b.position);
 				}
-				cats.sort((a, b) => !b.childs.length - !a.childs.length || a.position - b.position);
+				cats.sort((a, b) => (a.type=="GUILD_CATEGORY") - (b.type=="GUILD_CATEGORY") || a.position - b.position);
 				for(let i in cats){
 					let cat = cats[i];
 					cat.prefix=guild.childprefix+(i!=cats.length-1?'├':'└');
@@ -250,7 +338,7 @@ async function render(){
 		}
 		console.log("\n")
 	}
-	
+	await print_prompt()
 }
 
 (async ()=>{
@@ -258,7 +346,7 @@ async function render(){
 		let logintype = (await input('Log in using TOKEN or PASSWORD:')).trim();
 		if(logintype.toUpperCase()[0]!='P'){
 			let TOKEN = (await input('TOKEN: ')).trim();
-			if(TOKEN=="") TOKEN = (""+fs.readFileSync('../token.txt')).trim();
+			if(TOKEN.trim()=="") TOKEN = (""+fs.readFileSync('../token.txt')).trim();
 			let pro = new Promise(res => client.once('ready',res))
 			client.login(TOKEN)
 			await pro;
@@ -284,7 +372,8 @@ async function render(){
 		if(rend)
 			render();
 		rend = true;
-		let key = await input({raw:1});
+		let keypress = await input({raw:1});
+		let key = keypress.sequence;
 		if(key=='q'||key=='\u0003')
 			process.exit()
 		else if(key[0]=='\u001b'){
@@ -336,46 +425,36 @@ async function render(){
 		}
 		else if(key=='\r'){
 			if(talkableSel.includes(data.cur_sel)&&allowedChannelTypes.includes(data.cur_channel_obj?.type)){
-				enableUpdates=false;
-				console.log("< > ")
-				let msg = await input();
+				let msg = await input({prefix:'< > ',norender:true});
 				if(!msg.includes("\033"))
 					data.cur_channel_obj.send(msg).catch(()=>{});
-				enableUpdates=true;
 			}
 		}
 		else if(key=='r'){
 			if(data.cur_sel=='message'){
-				enableUpdates=false;
-				console.log("<R> ")
-				let msg = await input();
+				let msg = await input({prefix:'<R> ',norender:true});
 				if(!msg.includes("\033"))
 					data.cur_message_obj.reply(msg).catch(()=>{});
-				enableUpdates=true;
 			}
 		}
 		else if(key==':'){
 			frame+=1;
-			enableUpdates=false;
-			console.log(':')
-			let command = (await input()).trim();
+			let command = (await input({prefix:':',norender:true})).trim();
 			if(command=='q'){
 				process.exit();
 				return;
 			}
 			log(eval(command));
 			await input({raw:1});
-			enableUpdates=true;
 		}
 		else if(key=='+'){
 			if(data.cur_sel=='message'){
 				frame+=1;
-				console.log('+ ')
-				let emote = (await input()).trim();
+				let emote = await input({prefix:'+ ',norender:true});
 				if(!emote.includes("\033")){
 					try{
-						if(emote in data.emojis)
-							await data.cur_message_obj.react(data.emojis[emote]);
+						if(emote in emojis)
+							await data.cur_message_obj.react(emojis[emote]);
 						else 
 							await data.cur_message_obj.react(emote)
 					}catch(err){
@@ -388,11 +467,13 @@ async function render(){
 		else if(key=='e'){
 			if(data.cur_sel=='message'){
 				frame+=1;
-				console.log('<E> ')
-				let edit = (await input()).trim();
+				let edit = await input({prefix:'<E> ',norender:true});
 				if(!edit.includes("\033")){
 					try{
-						await data.cur_message_obj.edit(edit)
+						if(edit.trim()=="")
+							await data.cur_message_obj.delete()
+						else
+							await data.cur_message_obj.edit(edit)
 					}catch(err){
 						console.log('unable to edit')
 						await new Promise(res => setTimeout(res,1000)); 
@@ -420,6 +501,7 @@ async function render(){
 				}
 			}
 		}else{
+			console.log(key);
 			rend = false;
 		}
 	}
