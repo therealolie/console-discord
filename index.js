@@ -43,13 +43,12 @@ const input = async (args) => {
 	stdin.setRawMode(true);
 	let type = 'null';
 	if(args?.type)type = args.type;
-	let inp = args?.suggest??"";
 	cur_prompt.backslashing = false;
-	cur_prompt.text = "";
-	cur_prompt.curs_pos = 0
+	cur_prompt.text = args?.suggest??"";
+	cur_prompt.curs_pos = args?.suggest?.length??0;
 	cur_prompt.active = true;
 	cur_prompt.history = Object.create(input_history[type]??[]);
-	console.log(cur_prompt.prefix)
+	console.log(cur_prompt.prefix + cur_prompt.text)
 	while(true){
 		let cur_inp = await input({raw:true});
 		function append(letter){
@@ -425,21 +424,21 @@ async function render(){
 		}
 		else if(key=='\r'){
 			if(talkableSel.includes(data.cur_sel)&&allowedChannelTypes.includes(data.cur_channel_obj?.type)){
-				let msg = await input({prefix:'< > ',norender:true});
+				let msg = await input({prefix:'< > '});
 				if(!msg.includes("\033"))
 					data.cur_channel_obj.send(msg).catch(()=>{});
 			}
 		}
 		else if(key=='r'){
 			if(data.cur_sel=='message'){
-				let msg = await input({prefix:'<R> ',norender:true});
+				let msg = await input({prefix:'<R> '});
 				if(!msg.includes("\033"))
 					data.cur_message_obj.reply(msg).catch(()=>{});
 			}
 		}
 		else if(key==':'){
 			frame+=1;
-			let command = (await input({prefix:':',norender:true})).trim();
+			let command = (await input({prefix:':'})).trim();
 			if(command=='q'){
 				process.exit();
 				return;
@@ -450,7 +449,7 @@ async function render(){
 		else if(key=='+'){
 			if(data.cur_sel=='message'){
 				frame+=1;
-				let emote = await input({prefix:'+ ',norender:true});
+				let emote = await input({prefix:'+ '});
 				if(!emote.includes("\033")){
 					try{
 						if(emote in emojis)
@@ -467,7 +466,7 @@ async function render(){
 		else if(key=='e'){
 			if(data.cur_sel=='message'){
 				frame+=1;
-				let edit = await input({prefix:'<E> ',norender:true});
+				let edit = await input({prefix:'<E> ',suggest:data.cur_message_obj.content});
 				if(!edit.includes("\033")){
 					try{
 						if(edit.trim()=="")
@@ -500,9 +499,7 @@ async function render(){
 					}
 				}
 			}
-		}else{
-			console.log(key);
+		}else
 			rend = false;
-		}
 	}
 })()
